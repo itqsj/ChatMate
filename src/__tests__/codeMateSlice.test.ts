@@ -24,7 +24,6 @@ describe('codeMateSlice', () => {
       addWorkspaceFromPath('C:\\Work\\demo-app'),
     );
 
-    expect(state.activeWorkspaceId).toBe('local-C:\\Work\\demo-app');
     expect(state.folderMessage).toBe('已打开文件夹: C:\\Work\\demo-app');
     expect(
       state.workspaces.some((workspace) => workspace.name === 'demo-app'),

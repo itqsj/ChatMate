@@ -9,7 +9,11 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import { useStreamChat } from '@renderer/hooks/useStreamChat';
-import { selectCodeMateActiveWorkspace } from '@renderer/store/codeMateSlice';
+import {
+  selectCodeMateChats,
+  selectCodeMateSelectedChatId,
+  selectCodeMateWorkspaces,
+} from '@renderer/store/codeMateSlice';
 import { useAppSelector } from '@renderer/store/hooks';
 import { useState, type KeyboardEvent } from 'react';
 
@@ -17,7 +21,14 @@ import { useState, type KeyboardEvent } from 'react';
  * 渲染底部输入区，并负责发送聊天消息。
  */
 export default function ChatMateComposer() {
-  const activeWorkspace = useAppSelector(selectCodeMateActiveWorkspace);
+  const selectedChatId = useAppSelector(selectCodeMateSelectedChatId);
+  const chats = useAppSelector(selectCodeMateChats);
+  const workspaces = useAppSelector(selectCodeMateWorkspaces);
+  const selectedChat = chats.find((c) => c.id === selectedChatId);
+  const activeWorkspace = workspaces.find(
+    (w) => w.id === selectedChat?.workspaceId,
+  );
+
   const { errorMessage, isStreaming, sendMessage } = useStreamChat();
   const [message, setMessage] = useState('');
   const workspaceName = activeWorkspace?.name || '未选择工作区';

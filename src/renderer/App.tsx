@@ -14,6 +14,7 @@ import {
 } from '@renderer/theme';
 import ChatMateDesktop from '@renderer/views/chatMate/ChatMateDesktop';
 import Settings from '@renderer/views/settings/Settings';
+import GlobalSnackbar from '@renderer/components/GlobalSnackbar';
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -57,6 +58,7 @@ export default function App() {
         </Routes>
       </Router>
       <Settings />
+      <GlobalSnackbar />
     </ThemeProvider>
   );
 }

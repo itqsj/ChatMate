@@ -8,6 +8,7 @@ export type CodeMateChat = {
   id: string;
   title: string;
   time: string;
+  workspaceId?: string;
 };
 
 export type CodeMateMessage = {

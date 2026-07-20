@@ -6,7 +6,6 @@ import type {
 } from '@renderer/types/codeMate';
 
 export type CodeMateState = {
-  activeWorkspaceId: string;
   chats: CodeMateChat[];
   folderMessage: string;
   messages: CodeMateMessage[];
@@ -15,8 +14,6 @@ export type CodeMateState = {
 };
 
 const initialState: CodeMateState = {
-  // 当前绑定的工作区 ID
-  activeWorkspaceId: '',
   // 左侧栏展示的聊天记录列表。
   chats: [],
   // 文件夹选择器操作反馈，空字符串表示不展示提示。
@@ -89,7 +86,7 @@ const codeMateSlice = createSlice({
       state.messages = [];
     },
     /**
-     * 根据选择的文件夹新增工作区，并切换到该工作区。
+     * 根据选择的文件夹新增工作区。
      */
     addWorkspaceFromPath(state, action: PayloadAction<string>) {
       const folderPath = action.payload;
@@ -103,7 +100,6 @@ const codeMateSlice = createSlice({
         state.workspaces.push(nextWorkspace);
       }
 
-      state.activeWorkspaceId = nextWorkspace.id;
       state.folderMessage = `已打开文件夹: ${folderPath}`;
     },
     /**
@@ -112,12 +108,6 @@ const codeMateSlice = createSlice({
     selectChat(state, action: PayloadAction<string>) {
       state.selectedChatId = action.payload;
       state.messages = [];
-    },
-    /**
-     * 切换当前工作区 ID。
-     */
-    selectWorkspace(state, action: PayloadAction<string>) {
-      state.activeWorkspaceId = action.payload;
     },
     /**
      * 覆盖指定消息内容。
@@ -153,7 +143,6 @@ export const {
   addWorkspaceFromPath,
   createChat,
   selectChat,
-  selectWorkspace,
   setChatMessageContent,
   setFolderMessage,
 } = codeMateSlice.actions;
@@ -187,23 +176,6 @@ export const selectCodeMateFolderMessage = (state: CodeMateRootState) =>
  */
 export const selectCodeMateSelectedChatId = (state: CodeMateRootState) =>
   state.codeMate.selectedChatId;
-
-/**
- * 获取当前激活的工作区 ID。
- */
-export const selectCodeMateActiveWorkspaceId = (state: CodeMateRootState) =>
-  state.codeMate.activeWorkspaceId;
-
-/**
- * 获取当前激活的工作区。
- */
-export const selectCodeMateActiveWorkspace = (state: CodeMateRootState) => {
-  return (
-    state.codeMate.workspaces.find(
-      (workspace) => workspace.id === state.codeMate.activeWorkspaceId,
-    ) || null
-  );
-};
 
 /**
  * 获取当前选中的聊天。

@@ -1,6 +1,6 @@
 1. 项目文件目录如下：
 
-electron-react-boilerplate/
+ChatMate/
 ├─ src/
 │  ├─ main/
 │  │  ├─ main.ts                    # Electron app 主进程入口，创建 BrowserWindow，注册 ipcMain，管理窗口生命周期
