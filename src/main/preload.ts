@@ -24,6 +24,7 @@ const electronHandler = {
   },
 };
 
+// 暴露electron app层给到render
 contextBridge.exposeInMainWorld('electron', electronHandler);
 
 export type ElectronHandler = typeof electronHandler;

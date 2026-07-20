@@ -1,50 +1,59 @@
+import { useEffect, useMemo } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
-import icon from '../../assets/icon.svg';
+import CssBaseline from '@mui/material/CssBaseline';
+import { ThemeProvider } from '@mui/material/styles';
 import './App.css';
-
-function Hello() {
-  return (
-    <div>
-      <div className="Hello">
-        <img width="200" alt="icon" src={icon} />
-      </div>
-      <h1>electron-react-boilerplate</h1>
-      <div className="Hello">
-        <a
-          href="https://electron-react-boilerplate.js.org/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <button type="button">
-            <span role="img" aria-label="books">
-              📚
-            </span>
-            Read our docs
-          </button>
-        </a>
-        <a
-          href="https://github.com/sponsors/electron-react-boilerplate"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <button type="button">
-            <span role="img" aria-label="folded hands">
-              🙏
-            </span>
-            Donate
-          </button>
-        </a>
-      </div>
-    </div>
-  );
-}
+import { COLOR_MODE } from '../constants/theme';
+import Home from './Home';
+import {
+  createAppTheme,
+  hasSavedColorMode,
+  SYSTEM_DARK_MODE_QUERY,
+} from './theme';
+import { useAppDispatch, useAppSelector } from './store/hooks';
+import { setColorMode } from './store/themeSlice';
 
 export default function App() {
+  const dispatch = useAppDispatch();
+  const mode = useAppSelector((state) => state.theme.mode);
+  const theme = useMemo(() => createAppTheme(mode), [mode]);
+
+  /**
+   * 没有用户手动选择时，应用跟随系统明暗主题变化。
+   */
+  useEffect(() => {
+    if (
+      hasSavedColorMode() ||
+      typeof window === 'undefined' ||
+      !window.matchMedia
+    ) {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(SYSTEM_DARK_MODE_QUERY);
+    const handleSystemModeChange = (event: MediaQueryListEvent) => {
+      if (!hasSavedColorMode()) {
+        dispatch(
+          setColorMode(event.matches ? COLOR_MODE.DARK : COLOR_MODE.LIGHT),
+        );
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleSystemModeChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleSystemModeChange);
+    };
+  }, [dispatch]);
+
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Hello />} />
-      </Routes>
-    </Router>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <Routes>
+          <Route path="/" element={<Home />} />
+        </Routes>
+      </Router>
+    </ThemeProvider>
   );
 }
