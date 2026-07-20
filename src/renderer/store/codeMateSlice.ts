@@ -1,9 +1,4 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import {
-  CODEMATE_CHATS,
-  CODEMATE_MESSAGES,
-  CODEMATE_WORKSPACES,
-} from '@renderer/mocks/codeMate';
 import type {
   CodeMateChat,
   CodeMateMessage,
@@ -20,22 +15,22 @@ export type CodeMateState = {
 };
 
 const initialState: CodeMateState = {
-  // 当前绑定的工作区 ID，默认使用第一条 mock 工作区。
-  activeWorkspaceId: CODEMATE_WORKSPACES[0].id,
+  // 当前绑定的工作区 ID
+  activeWorkspaceId: '',
   // 左侧栏展示的聊天记录列表。
-  chats: CODEMATE_CHATS,
+  chats: [],
   // 文件夹选择器操作反馈，空字符串表示不展示提示。
   folderMessage: '',
   // 主聊天区域展示的消息流。
-  messages: CODEMATE_MESSAGES,
+  messages: [],
   // 当前选中的聊天 ID，默认选中第一条聊天。
-  selectedChatId: CODEMATE_CHATS[0].id,
+  selectedChatId: '',
   // 左侧栏展示的工作区列表。
-  workspaces: CODEMATE_WORKSPACES,
+  workspaces: [],
 };
 
 /**
- * 根据真实文件夹路径生成工作区名称，优先使用路径最后一级。
+ * 根据文件夹路径最后一段生成工作区名称。
  */
 const getFolderAlias = (folderPath: string) => {
   const segments = folderPath.split(/[\\/]/).filter(Boolean);
@@ -43,7 +38,7 @@ const getFolderAlias = (folderPath: string) => {
 };
 
 /**
- * 把真实文件夹路径转换成 Redux 中的工作区数据。
+ * 把真实文件夹路径转换成工作区状态数据。
  */
 const createWorkspaceFromPath = (folderPath: string): CodeMateWorkspace => {
   return {
@@ -58,7 +53,43 @@ const codeMateSlice = createSlice({
   initialState,
   reducers: {
     /**
-     * 根据 Electron 文件夹选择器返回的路径新增工作区，并切换为当前工作区。
+     * 追加一条用户或 AI 聊天消息。
+     */
+    appendChatMessage(state, action: PayloadAction<CodeMateMessage>) {
+      state.messages.push(action.payload);
+    },
+    /**
+     * 追加 AI 流式返回的文本片段。
+     */
+    appendChatMessageChunk(
+      state,
+      action: PayloadAction<{ chunk: string; id: string }>,
+    ) {
+      const message = state.messages.find(
+        (item) => item.id === action.payload.id,
+      );
+
+      if (message) {
+        message.content += action.payload.chunk;
+      }
+    },
+    /**
+     * 创建一条真实聊天记录，并清空当前聊天窗口。
+     */
+    createChat(state, action: PayloadAction<CodeMateChat>) {
+      const existingChat = state.chats.find(
+        (chat) => chat.id === action.payload.id,
+      );
+
+      if (!existingChat) {
+        state.chats.unshift(action.payload);
+      }
+
+      state.selectedChatId = action.payload.id;
+      state.messages = [];
+    },
+    /**
+     * 根据选择的文件夹新增工作区，并切换到该工作区。
      */
     addWorkspaceFromPath(state, action: PayloadAction<string>) {
       const folderPath = action.payload;
@@ -76,25 +107,35 @@ const codeMateSlice = createSlice({
       state.folderMessage = `已打开文件夹: ${folderPath}`;
     },
     /**
-     * 新建聊天的模拟行为：当前没有真实创建逻辑，先回到第一条聊天。
-     */
-    resetToFirstChat(state) {
-      state.selectedChatId = state.chats[0].id;
-    },
-    /**
-     * 切换当前选中的聊天记录。
+     * 切换当前聊天 ID。
      */
     selectChat(state, action: PayloadAction<string>) {
       state.selectedChatId = action.payload;
+      state.messages = [];
     },
     /**
-     * 切换当前绑定的工作区上下文。
+     * 切换当前工作区 ID。
      */
     selectWorkspace(state, action: PayloadAction<string>) {
       state.activeWorkspaceId = action.payload;
     },
     /**
-     * 写入文件夹选择器相关提示，用于展示取消、成功或失败反馈。
+     * 覆盖指定消息内容。
+     */
+    setChatMessageContent(
+      state,
+      action: PayloadAction<{ content: string; id: string }>,
+    ) {
+      const message = state.messages.find(
+        (item) => item.id === action.payload.id,
+      );
+
+      if (message) {
+        message.content = action.payload.content;
+      }
+    },
+    /**
+     * 写入文件夹选择器反馈文案。
      */
     setFolderMessage(state, action: PayloadAction<string>) {
       state.folderMessage = action.payload;
@@ -107,33 +148,36 @@ type CodeMateRootState = {
 };
 
 export const {
+  appendChatMessage,
+  appendChatMessageChunk,
   addWorkspaceFromPath,
-  resetToFirstChat,
+  createChat,
   selectChat,
   selectWorkspace,
+  setChatMessageContent,
   setFolderMessage,
 } = codeMateSlice.actions;
 
 /**
- * 获取左侧栏工作区列表。
+ * 获取左侧工作区列表。
  */
 export const selectCodeMateWorkspaces = (state: CodeMateRootState) =>
   state.codeMate.workspaces;
 
 /**
- * 获取左侧栏聊天列表。
+ * 获取左侧聊天列表。
  */
 export const selectCodeMateChats = (state: CodeMateRootState) =>
   state.codeMate.chats;
 
 /**
- * 获取主聊天区域消息流。
+ * 获取当前聊天消息列表。
  */
 export const selectCodeMateMessages = (state: CodeMateRootState) =>
   state.codeMate.messages;
 
 /**
- * 获取文件夹选择器反馈提示。
+ * 获取文件夹选择器反馈文案。
  */
 export const selectCodeMateFolderMessage = (state: CodeMateRootState) =>
   state.codeMate.folderMessage;
@@ -151,24 +195,24 @@ export const selectCodeMateActiveWorkspaceId = (state: CodeMateRootState) =>
   state.codeMate.activeWorkspaceId;
 
 /**
- * 获取当前激活的工作区，异常情况下回退到第一个工作区。
+ * 获取当前激活的工作区。
  */
 export const selectCodeMateActiveWorkspace = (state: CodeMateRootState) => {
   return (
     state.codeMate.workspaces.find(
       (workspace) => workspace.id === state.codeMate.activeWorkspaceId,
-    ) || state.codeMate.workspaces[0]
+    ) || null
   );
 };
 
 /**
- * 获取当前选中的聊天，异常情况下回退到第一条聊天。
+ * 获取当前选中的聊天。
  */
 export const selectCodeMateSelectedChat = (state: CodeMateRootState) => {
   return (
     state.codeMate.chats.find(
       (chat) => chat.id === state.codeMate.selectedChatId,
-    ) || state.codeMate.chats[0]
+    ) || null
   );
 };
 

@@ -38,15 +38,26 @@ export default function ChatMateMessageList() {
         })}
       >
         <Typography noWrap sx={{ fontSize: 13, fontWeight: 800 }}>
-          {selectedChat.title}
+          {selectedChat?.title || '新聊天'}
         </Typography>
       </Stack>
 
       <Box sx={{ flex: 1, overflow: 'auto', px: 3, py: 2 }}>
         <Stack spacing={1.25} sx={{ mx: 'auto', maxWidth: 860 }}>
-          {messages.map((message) => (
-            <ChatMateMessageItem key={message.id} message={message} />
-          ))}
+          {messages.length === 0 ? (
+            <Typography
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                fontSize: 12,
+              })}
+            >
+              暂无消息
+            </Typography>
+          ) : (
+            messages.map((message) => (
+              <ChatMateMessageItem key={message.id} message={message} />
+            ))
+          )}
         </Stack>
       </Box>
     </Box>

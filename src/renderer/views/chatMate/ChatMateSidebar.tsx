@@ -10,7 +10,7 @@ import { alpha } from '@mui/material/styles';
 import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
 import {
   addWorkspaceFromPath,
-  resetToFirstChat,
+  createChat,
   selectChat,
   selectCodeMateActiveWorkspaceId,
   selectCodeMateChats,
@@ -159,10 +159,16 @@ export default function ChatMateSidebar() {
   const workspaces = useAppSelector(selectCodeMateWorkspaces);
 
   /**
-   * 处理新建聊天按钮，当前模拟为回到第一条聊天。
+   * 处理新建聊天按钮，创建一条空聊天记录。
    */
   const handleCreateChat = useCallback(() => {
-    dispatch(resetToFirstChat());
+    dispatch(
+      createChat({
+        id: `chat-${Date.now()}`,
+        time: '刚刚',
+        title: '新聊天',
+      }),
+    );
   }, [dispatch]);
 
   /**
@@ -271,14 +277,27 @@ export default function ChatMateSidebar() {
         </Stack>
 
         <Stack spacing={0.25} sx={{ mb: 1 }}>
-          {workspaces.map((workspace) => (
-            <WorkspaceItem
-              key={workspace.id}
-              isActive={workspace.id === activeWorkspaceId}
-              onSelectWorkspace={handleSelectWorkspace}
-              workspace={workspace}
-            />
-          ))}
+          {workspaces.length === 0 ? (
+            <Typography
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                fontSize: 11,
+                px: 0.75,
+                py: 0.5,
+              })}
+            >
+              暂未打开工作区
+            </Typography>
+          ) : (
+            workspaces.map((workspace) => (
+              <WorkspaceItem
+                key={workspace.id}
+                isActive={workspace.id === activeWorkspaceId}
+                onSelectWorkspace={handleSelectWorkspace}
+                workspace={workspace}
+              />
+            ))
+          )}
         </Stack>
 
         <Typography
@@ -291,14 +310,27 @@ export default function ChatMateSidebar() {
           最近聊天
         </Typography>
         <List disablePadding>
-          {chats.map((chat) => (
-            <ChatItem
-              key={chat.id}
-              chat={chat}
-              isSelected={selectedChatId === chat.id}
-              onSelectChat={handleSelectChat}
-            />
-          ))}
+          {chats.length === 0 ? (
+            <Typography
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                fontSize: 11,
+                px: 0.75,
+                py: 0.5,
+              })}
+            >
+              暂无聊天
+            </Typography>
+          ) : (
+            chats.map((chat) => (
+              <ChatItem
+                key={chat.id}
+                chat={chat}
+                isSelected={selectedChatId === chat.id}
+                onSelectChat={handleSelectChat}
+              />
+            ))
+          )}
         </List>
       </Box>
     </Box>
