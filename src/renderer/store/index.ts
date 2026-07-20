@@ -1,17 +1,23 @@
 import { configureStore, createListenerMiddleware } from '@reduxjs/toolkit';
-import { getInitialColorMode, saveColorMode } from '../theme';
-import themeReducer, { toggleColorMode } from './themeSlice';
+import type { ColorMode } from '@renderer/theme';
+import { getInitialColorMode, saveColorMode } from '@renderer/theme';
+import codeMateReducer from '@renderer/store/codeMateSlice';
+import themeReducer, {
+  setColorMode,
+  toggleColorMode,
+} from '@renderer/store/themeSlice';
 
 /**
  * Redux listener middleware 用来处理 reducer 之外的副作用。
- * 这里专门监听主题切换动作，并把切换后的主题模式保存到 localStorage。
+ * 这里专门监听主题设置动作，并把更新后的主题模式保存到 localStorage。
  */
 const themeListenerMiddleware = createListenerMiddleware();
 
 themeListenerMiddleware.startListening({
-  actionCreator: toggleColorMode,
+  matcher: (action) =>
+    setColorMode.match(action) || toggleColorMode.match(action),
   effect: (_action, listenerApi) => {
-    const state = listenerApi.getState() as RootState;
+    const state = listenerApi.getState() as { theme: { mode: ColorMode } };
 
     saveColorMode(state.theme.mode);
   },
@@ -29,6 +35,7 @@ export const createAppStore = () => {
       },
     },
     reducer: {
+      codeMate: codeMateReducer,
       theme: themeReducer,
     },
     middleware: (getDefaultMiddleware) =>

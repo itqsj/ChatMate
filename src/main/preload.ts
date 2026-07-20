@@ -2,9 +2,43 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-export type Channels = 'ipc-example';
+export type Channels =
+  | 'ipc-example'
+  | 'dialog:open-folder'
+  | 'window:close'
+  | 'window:minimize'
+  | 'window:open-external'
+  | 'window:reload'
+  | 'window:toggle-full-screen'
+  | 'window:toggle-maximize';
+
+export type OpenFolderResult = {
+  canceled: boolean;
+  filePaths: string[];
+};
 
 const electronHandler = {
+  closeWindow(): void {
+    ipcRenderer.send('window:close');
+  },
+  minimizeWindow(): void {
+    ipcRenderer.send('window:minimize');
+  },
+  openFolder(): Promise<OpenFolderResult> {
+    return ipcRenderer.invoke('dialog:open-folder');
+  },
+  openExternal(url: string): Promise<void> {
+    return ipcRenderer.invoke('window:open-external', url);
+  },
+  reloadWindow(): void {
+    ipcRenderer.send('window:reload');
+  },
+  toggleFullScreenWindow(): void {
+    ipcRenderer.send('window:toggle-full-screen');
+  },
+  toggleMaximizeWindow(): void {
+    ipcRenderer.send('window:toggle-maximize');
+  },
   ipcRenderer: {
     sendMessage(channel: Channels, ...args: unknown[]) {
       ipcRenderer.send(channel, ...args);

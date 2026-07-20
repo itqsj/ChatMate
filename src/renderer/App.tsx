@@ -1,17 +1,19 @@
 import { useEffect, useMemo } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
+
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider } from '@mui/material/styles';
-import './App.css';
-import { COLOR_MODE } from '../constants/theme';
-import Home from './Home';
+import { COLOR_MODE } from '@/constants/theme';
+import '@renderer/App.css';
+import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
+import { setColorMode } from '@renderer/store/themeSlice';
 import {
   createAppTheme,
   hasSavedColorMode,
   SYSTEM_DARK_MODE_QUERY,
-} from './theme';
-import { useAppDispatch, useAppSelector } from './store/hooks';
-import { setColorMode } from './store/themeSlice';
+} from '@renderer/theme';
+import ChatMateDesktop from '@renderer/views/chatMate/ChatMateDesktop';
+import Settings from '@renderer/views/settings/Settings';
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -51,9 +53,10 @@ export default function App() {
       <CssBaseline />
       <Router>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<ChatMateDesktop />} />
         </Routes>
       </Router>
+      <Settings />
     </ThemeProvider>
   );
 }

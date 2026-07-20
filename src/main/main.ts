@@ -9,11 +9,11 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, Menu } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
+import MenuBuilder from '@/main/menu';
+import { resolveHtmlPath } from '@/main/util';
 
 class AppUpdater {
   constructor() {
@@ -24,6 +24,71 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
+
+ipcMain.handle('dialog:open-folder', async () => {
+  try {
+    if (!mainWindow) {
+      return {
+        canceled: true,
+        filePaths: [],
+      };
+    }
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openDirectory'],
+    });
+
+    return {
+      canceled: result.canceled,
+      filePaths: result.filePaths,
+    };
+  } catch (error) {
+    log.error('Failed to open folder dialog', error);
+    throw error;
+  }
+});
+
+ipcMain.on('window:minimize', () => {
+  mainWindow?.minimize();
+});
+
+ipcMain.on('window:toggle-maximize', () => {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+    return;
+  }
+
+  mainWindow.maximize();
+});
+
+ipcMain.on('window:close', () => {
+  mainWindow?.close();
+});
+
+ipcMain.on('window:reload', () => {
+  mainWindow?.webContents.reload();
+});
+
+ipcMain.on('window:toggle-full-screen', () => {
+  if (!mainWindow) {
+    return;
+  }
+
+  mainWindow.setFullScreen(!mainWindow.isFullScreen());
+});
+
+ipcMain.handle('window:open-external', async (_event, url: string) => {
+  try {
+    await shell.openExternal(url);
+  } catch (error) {
+    log.error('Failed to open external url', error);
+    throw error;
+  }
+});
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -71,6 +136,7 @@ const createWindow = async () => {
   };
 
   mainWindow = new BrowserWindow({
+    frame: false,
     show: false,
     width: 1024,
     height: 728,
@@ -99,8 +165,11 @@ const createWindow = async () => {
     mainWindow = null;
   });
 
-  const menuBuilder = new MenuBuilder(mainWindow);
-  menuBuilder.buildMenu();
+  if (isDebug) {
+    const menuBuilder = new MenuBuilder(mainWindow);
+    menuBuilder.setupDevelopmentEnvironment();
+  }
+  Menu.setApplicationMenu(null);
 
   // Open urls in the user's browser
   mainWindow.webContents.setWindowOpenHandler((edata) => {

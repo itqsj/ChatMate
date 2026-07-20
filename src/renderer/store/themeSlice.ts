@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { COLOR_MODE } from '../../constants/theme';
-import type { ColorMode } from '../theme';
+import { COLOR_MODE } from '@/constants/theme';
+import type { ColorMode } from '@renderer/theme';
 
 /**
  * 主题状态，目前只维护全局明暗主题模式。

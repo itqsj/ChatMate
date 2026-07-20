@@ -2,10 +2,10 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import icon from '../../assets/icon.svg';
-import { COLOR_MODE } from '../constants/theme';
-import { useAppDispatch, useAppSelector } from './store/hooks';
-import { toggleColorMode } from './store/themeSlice';
+import { COLOR_MODE } from '@/constants/theme';
+import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
+import { toggleColorMode } from '@renderer/store/themeSlice';
+import icon from '@/assets/icon.svg';
 
 /**
  * 首页组件，负责展示应用入口内容和主题切换按钮。

@@ -1,9 +1,9 @@
-import { COLOR_MODE } from '../constants/theme';
+import { COLOR_MODE } from '@/constants/theme';
 import {
   createAppTheme,
   DARK_BACKGROUND,
   LIGHT_BACKGROUND,
-} from '../renderer/theme';
+} from '@renderer/theme';
 
 describe('theme', () => {
   it('should use gradient backgrounds from theme', () => {
