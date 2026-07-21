@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import {
+  createStreamChatHistory,
   createLocalChat,
   createLocalMessage,
   listChats,
@@ -12,7 +13,10 @@ import {
   setChatMessageContent,
   setChats,
 } from '@renderer/store/codeMateSlice';
-import { selectCodeMateSelectedChat } from '@renderer/store/selectors';
+import {
+  selectCodeMateMessages,
+  selectCodeMateSelectedChat,
+} from '@renderer/store/selectors';
 import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
 import type { CodeMateChat } from '@renderer/types/codeMate';
 
@@ -41,6 +45,7 @@ const getNow = () => new Date().toISOString();
  */
 const useStreamChat = () => {
   const dispatch = useAppDispatch();
+  const messages = useAppSelector(selectCodeMateMessages);
   const selectedChat = useAppSelector(selectCodeMateSelectedChat);
   const [errorMessage, setErrorMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -85,6 +90,9 @@ const useStreamChat = () => {
           role: 'user',
         });
 
+        // 后端无状态调用模型，前端只传当前会话最近 30 条历史消息。
+        const history = createStreamChatHistory(messages);
+
         dispatch(appendChatMessage(userMessage));
         await refreshChats();
 
@@ -102,6 +110,7 @@ const useStreamChat = () => {
         );
 
         await streamChat({
+          history,
           message: content,
           onMessage: (chunk) => {
             assistantContent += chunk;
@@ -154,7 +163,7 @@ const useStreamChat = () => {
         setIsStreaming(false);
       }
     },
-    [dispatch, isStreaming, refreshChats, selectedChat],
+    [dispatch, isStreaming, messages, refreshChats, selectedChat],
   );
 
   return {

@@ -1,8 +1,18 @@
-import { CHAT_STREAM_API_URL, CHAT_STREAM_EVENT } from '@/constants/chat';
+import {
+  CHAT_HISTORY_MESSAGE_LIMIT,
+  CHAT_STREAM_API_URL,
+  CHAT_STREAM_EVENT,
+} from '@/constants/chat';
 import type { CreateChatParams, CreateMessageParams } from '@/types/chatDB';
 import type { CodeMateChat, CodeMateMessage } from '@renderer/types/codeMate';
 
+export type StreamChatHistoryMessage = {
+  content: string;
+  role: CodeMateMessage['role'];
+};
+
 type StreamChatParams = {
+  history: StreamChatHistoryMessage[];
   message: string;
   onMessage: (content: string) => void;
 };
@@ -38,6 +48,18 @@ const mapChat = (chat: Omit<CodeMateChat, 'time'>): CodeMateChat => {
     ...chat,
     time: formatChatTime(chat.updatedAt),
   };
+};
+
+/**
+ * 构造发送给后端的历史消息，最多只保留最近 30 条。
+ */
+export const createStreamChatHistory = (
+  messages: CodeMateMessage[],
+): StreamChatHistoryMessage[] => {
+  return messages.slice(-CHAT_HISTORY_MESSAGE_LIMIT).map((message) => ({
+    content: message.content,
+    role: message.role,
+  }));
 };
 
 /**
@@ -202,10 +224,14 @@ const readStream = async (
 /**
  * 请求后端 DeepSeek 流式接口；聊天记录保存由本地 SQLite 负责。
  */
-export const streamChat = async ({ message, onMessage }: StreamChatParams) => {
+export const streamChat = async ({
+  history,
+  message,
+  onMessage,
+}: StreamChatParams) => {
   try {
     const response = await fetch(CHAT_STREAM_API_URL, {
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ history, message }),
       headers: {
         'Content-Type': 'application/json',
       },

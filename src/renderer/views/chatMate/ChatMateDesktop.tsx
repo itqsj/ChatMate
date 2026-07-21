@@ -18,7 +18,6 @@ export default function ChatMateDesktop() {
         gridTemplateColumns: '260px minmax(0, 1fr)',
         gridTemplateRows: '34px minmax(0, 1fr)',
         height: '100vh',
-        minWidth: 960,
         overflow: 'hidden',
       })}
     >
