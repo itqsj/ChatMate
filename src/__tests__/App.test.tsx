@@ -10,6 +10,8 @@ const now = '2026-07-20T00:00:00.000Z';
 describe('App', () => {
   const originalMatchMedia = window.matchMedia;
   const createWorkspaceMock = jest.fn();
+  const deleteChatMock = jest.fn();
+  const deleteWorkspaceMock = jest.fn();
   const listChatsMock = jest.fn();
   const listMessagesMock = jest.fn();
   const listWorkspacesMock = jest.fn();
@@ -26,6 +28,8 @@ describe('App', () => {
   beforeEach(() => {
     localStorage.clear();
     createWorkspaceMock.mockReset();
+    deleteChatMock.mockReset();
+    deleteWorkspaceMock.mockReset();
     listChatsMock.mockReset();
     listMessagesMock.mockReset();
     listWorkspacesMock.mockReset();
@@ -40,6 +44,8 @@ describe('App', () => {
         updatedAt: now,
       }),
     );
+    deleteChatMock.mockResolvedValue('chat-1');
+    deleteWorkspaceMock.mockResolvedValue('workspace-1');
     listChatsMock.mockResolvedValue([]);
     listMessagesMock.mockResolvedValue([]);
     listWorkspacesMock.mockResolvedValue([]);
@@ -54,6 +60,8 @@ describe('App', () => {
           createChat: jest.fn(),
           createMessage: jest.fn(),
           createWorkspace: createWorkspaceMock,
+          deleteChat: deleteChatMock,
+          deleteWorkspace: deleteWorkspaceMock,
           listChats: listChatsMock,
           listMessages: listMessagesMock,
           listWorkspaces: listWorkspacesMock,
@@ -124,6 +132,118 @@ describe('App', () => {
       });
     });
     expect(await screen.findByText('demo-app')).toBeInTheDocument();
+  });
+
+  it('should confirm before deleting workspace', async () => {
+    listWorkspacesMock.mockResolvedValue([
+      {
+        createdAt: now,
+        id: 'workspace-1',
+        name: 'demo-app',
+        path: 'C:\\Work\\demo-app',
+        updatedAt: now,
+      },
+    ]);
+    listChatsMock.mockResolvedValue([
+      {
+        createdAt: now,
+        id: 'chat-1',
+        title: '工作区任务',
+        updatedAt: now,
+        workspaceId: 'workspace-1',
+      },
+    ]);
+
+    renderApp();
+
+    expect(await screen.findByText('demo-app')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'demo-app 更多操作' }));
+    fireEvent.click(await screen.findByText('删除'));
+
+    expect(screen.getByText('确认删除工作区')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
+
+    await waitFor(() => {
+      expect(deleteWorkspaceMock).toHaveBeenCalledWith('workspace-1');
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('demo-app')).not.toBeInTheDocument();
+    });
+  });
+
+  it('should confirm before deleting unassociated chat', async () => {
+    listChatsMock.mockResolvedValue([
+      {
+        createdAt: now,
+        id: 'chat-1',
+        title: '单独会话',
+        updatedAt: now,
+      },
+    ]);
+
+    renderApp();
+
+    expect(await screen.findByText('单独会话')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '单独会话 更多操作' }));
+
+    expect(listMessagesMock).not.toHaveBeenCalled();
+
+    fireEvent.click(await screen.findByText('删除'));
+
+    expect(screen.getByText('确认删除会话')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
+
+    await waitFor(() => {
+      expect(deleteChatMock).toHaveBeenCalledWith('chat-1');
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('单独会话')).not.toBeInTheDocument();
+    });
+  });
+
+  it('should delete chat under workspace from the same more menu', async () => {
+    listWorkspacesMock.mockResolvedValue([
+      {
+        createdAt: now,
+        id: 'workspace-1',
+        name: 'demo-app',
+        path: 'C:\\Work\\demo-app',
+        updatedAt: now,
+      },
+    ]);
+    listChatsMock.mockResolvedValue([
+      {
+        createdAt: now,
+        id: 'chat-1',
+        title: '工作区会话',
+        updatedAt: now,
+        workspaceId: 'workspace-1',
+      },
+    ]);
+
+    renderApp();
+
+    fireEvent.click(await screen.findByText('demo-app'));
+
+    expect(await screen.findByText('工作区会话')).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: '工作区会话 更多操作' }),
+    );
+    fireEvent.click(await screen.findByText('删除'));
+    fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
+
+    await waitFor(() => {
+      expect(deleteChatMock).toHaveBeenCalledWith('chat-1');
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('工作区会话')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('demo-app')).toBeInTheDocument();
   });
 
   it('should keep page stable when Electron folder picker fails', async () => {

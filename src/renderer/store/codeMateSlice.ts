@@ -69,6 +69,37 @@ const codeMateSlice = createSlice({
       state.messages = [];
     },
     /**
+     * 删除工作区，并同步移除它下面的任务。
+     */
+    removeWorkspace(state, action: PayloadAction<string>) {
+      const removedChatIds = state.chats
+        .filter((chat) => chat.workspaceId === action.payload)
+        .map((chat) => chat.id);
+
+      state.workspaces = state.workspaces.filter(
+        (workspace) => workspace.id !== action.payload,
+      );
+      state.chats = state.chats.filter(
+        (chat) => chat.workspaceId !== action.payload,
+      );
+
+      if (removedChatIds.includes(state.selectedChatId)) {
+        state.selectedChatId = '';
+        state.messages = [];
+      }
+    },
+    /**
+     * 删除单个聊天窗口，当前选中项被删时同步清空消息。
+     */
+    removeChat(state, action: PayloadAction<string>) {
+      state.chats = state.chats.filter((chat) => chat.id !== action.payload);
+
+      if (state.selectedChatId === action.payload) {
+        state.selectedChatId = '';
+        state.messages = [];
+      }
+    },
+    /**
      * 切换当前聊天 ID。
      */
     selectChat(state, action: PayloadAction<string>) {
@@ -154,6 +185,8 @@ export const {
   appendChatMessage,
   appendChatMessageChunk,
   createChat,
+  removeChat,
+  removeWorkspace,
   selectChat,
   setChats,
   setChatMessageContent,

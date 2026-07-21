@@ -69,6 +69,18 @@ export const createLocalChat = async (
 };
 
 /**
+ * 删除本地 SQLite 聊天窗口；关联消息由数据库级联删除。
+ */
+export const deleteLocalChat = async (chatId: string): Promise<string> => {
+  try {
+    return await window.electron.chatDB.deleteChat(chatId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '删除会话失败';
+    throw new Error(message);
+  }
+};
+
+/**
  * 从本地 SQLite 查询指定聊天窗口的消息。
  */
 export const listMessages = async (

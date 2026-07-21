@@ -53,6 +53,12 @@ const electronHandler = {
     createWorkspace(data: CreateWorkspaceParams): Promise<LocalWorkspace> {
       return ipcRenderer.invoke(IPC_CHANNELS.CREATE_WORKSPACE, data);
     },
+    deleteChat(chatId: string): Promise<string> {
+      return ipcRenderer.invoke(IPC_CHANNELS.DELETE_CHAT, chatId);
+    },
+    deleteWorkspace(workspaceId: string): Promise<string> {
+      return ipcRenderer.invoke(IPC_CHANNELS.DELETE_WORKSPACE, workspaceId);
+    },
     listChats(): Promise<LocalChat[]> {
       return ipcRenderer.invoke(IPC_CHANNELS.LIST_CHATS);
     },

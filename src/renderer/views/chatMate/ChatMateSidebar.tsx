@@ -1,10 +1,25 @@
 /* eslint-disable no-use-before-define */
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+} from 'react';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
 import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
@@ -12,12 +27,24 @@ import { alpha } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CreateOutlinedIcon from '@mui/icons-material/CreateOutlined';
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import { createLocalChat, listChats, listMessages } from '@renderer/api/chat';
-import { createWorkspace, listWorkspaces } from '@renderer/api/workspace';
+import {
+  createLocalChat,
+  deleteLocalChat,
+  listChats,
+  listMessages,
+} from '@renderer/api/chat';
+import {
+  createWorkspace,
+  deleteWorkspace,
+  listWorkspaces,
+} from '@renderer/api/workspace';
 import {
   createChat,
+  removeChat,
+  removeWorkspace,
   selectChat,
   setChats,
   setFolderMessage,
@@ -37,6 +64,8 @@ type WorkspaceItemProps = {
   chats: CodeMateChat[];
   isExpanded: boolean;
   onAddChat: (workspaceId: string) => Promise<void>;
+  onDeleteChatClick: (chat: CodeMateChat) => void;
+  onDeleteWorkspaceClick: (workspace: CodeMateWorkspace) => void;
   onSelectChat: (chatId: string) => Promise<void>;
   onToggleExpand: (workspaceId: string) => void;
   selectedChatId: string;
@@ -46,6 +75,7 @@ type WorkspaceItemProps = {
 type ChatItemProps = {
   chat: CodeMateChat;
   isSelected: boolean;
+  onDeleteChatClick: (chat: CodeMateChat) => void;
   onSelectChat: (chatId: string) => Promise<void>;
 };
 
@@ -64,11 +94,40 @@ const WorkspaceItem = memo(function WorkspaceItem({
   chats,
   isExpanded,
   onAddChat,
+  onDeleteChatClick,
+  onDeleteWorkspaceClick,
   onSelectChat,
   onToggleExpand,
   selectedChatId,
   workspace,
 }: WorkspaceItemProps) {
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const isMenuOpen = Boolean(menuAnchorEl);
+
+  /**
+   * 打开工作区更多操作菜单。
+   */
+  const handleOpenMenu = (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setMenuAnchorEl(event.currentTarget);
+  };
+
+  /**
+   * 关闭工作区更多操作菜单。
+   */
+  const handleCloseMenu = () => {
+    setMenuAnchorEl(null);
+  };
+
+  /**
+   * 关闭菜单后交给父组件打开确认删除弹窗。
+   */
+  const handleDeleteClick = (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    handleCloseMenu();
+    onDeleteWorkspaceClick(workspace);
+  };
+
   return (
     <Box>
       <Box
@@ -128,14 +187,47 @@ const WorkspaceItem = memo(function WorkspaceItem({
             <CreateOutlinedIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>
+        <Tooltip title="更多操作">
+          <IconButton
+            aria-label={`${workspace.name} 更多操作`}
+            className="workspace-action"
+            onClick={handleOpenMenu}
+            sx={(theme) => ({
+              color: theme.palette.text.secondary,
+              height: 22,
+              opacity: isMenuOpen ? 1 : 0,
+              width: 22,
+              '&:hover': {
+                color: theme.palette.primary.main,
+              },
+            })}
+          >
+            <MoreHorizIcon sx={{ fontSize: 15 }} />
+          </IconButton>
+        </Tooltip>
+        <Menu
+          anchorEl={menuAnchorEl}
+          open={isMenuOpen}
+          onClose={handleCloseMenu}
+          onClick={(event) => event.stopPropagation()}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          slotProps={{ list: { sx: { py: 0 } } }}
+        >
+          <MenuItem onClick={handleDeleteClick} sx={{ fontSize: 12 }}>
+            <DeleteOutlinedIcon sx={{ fontSize: 16, mr: 1 }} />
+            删除
+          </MenuItem>
+        </Menu>
       </Box>
       {isExpanded && chats.length > 0 && (
-        <List disablePadding sx={{ pl: 3 }}>
+        <List disablePadding>
           {chats.map((chat) => (
             <ChatItem
               key={chat.id}
               chat={chat}
               isSelected={selectedChatId === chat.id}
+              onDeleteChatClick={onDeleteChatClick}
               onSelectChat={onSelectChat}
             />
           ))}
@@ -151,8 +243,36 @@ const WorkspaceItem = memo(function WorkspaceItem({
 const ChatItem = memo(function ChatItem({
   chat,
   isSelected,
+  onDeleteChatClick,
   onSelectChat,
 }: ChatItemProps) {
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const isMenuOpen = Boolean(menuAnchorEl);
+
+  /**
+   * 打开会话更多操作菜单。
+   */
+  const handleOpenMenu = (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setMenuAnchorEl(event.currentTarget);
+  };
+
+  /**
+   * 关闭会话更多操作菜单。
+   */
+  const handleCloseMenu = () => {
+    setMenuAnchorEl(null);
+  };
+
+  /**
+   * 关闭菜单后交给父组件打开确认删除弹窗。
+   */
+  const handleDeleteClick = (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    handleCloseMenu();
+    onDeleteChatClick(chat);
+  };
+
   return (
     <ListItemButton
       selected={isSelected}
@@ -198,16 +318,31 @@ const ChatItem = memo(function ChatItem({
         <IconButton
           aria-label={`${chat.title} 更多操作`}
           className="chat-action"
+          onClick={handleOpenMenu}
           sx={(theme) => ({
             color: theme.palette.text.secondary,
             height: 22,
-            opacity: isSelected ? 1 : 0,
+            opacity: isSelected || isMenuOpen ? 1 : 0,
             width: 22,
           })}
         >
           <MoreHorizIcon sx={{ fontSize: 15 }} />
         </IconButton>
       </Tooltip>
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={isMenuOpen}
+        onClose={handleCloseMenu}
+        onClick={(event) => event.stopPropagation()}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        slotProps={{ list: { sx: { py: 0 } } }}
+      >
+        <MenuItem onClick={handleDeleteClick} sx={{ fontSize: 12 }}>
+          <DeleteOutlinedIcon sx={{ fontSize: 16, mr: 1 }} />
+          删除
+        </MenuItem>
+      </Menu>
     </ListItemButton>
   );
 });
@@ -225,6 +360,11 @@ export default function ChatMateSidebar() {
     new Set(),
   );
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
+  const [isDeletingChat, setIsDeletingChat] = useState(false);
+  const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<CodeMateChat | null>(null);
+  const [workspaceToDelete, setWorkspaceToDelete] =
+    useState<CodeMateWorkspace | null>(null);
 
   useEffect(() => {
     let canceled = false;
@@ -234,6 +374,7 @@ export default function ChatMateSidebar() {
      */
     const loadLocalData = async () => {
       try {
+        // 获取所有工作区和聊天记录
         const [workspaceList, chatList] = await Promise.all([
           listWorkspaces(),
           listChats(),
@@ -321,6 +462,94 @@ export default function ChatMateSidebar() {
       return next;
     });
   }, []);
+
+  /**
+   * 打开删除工作区确认弹窗。
+   */
+  const handleOpenDeleteWorkspaceDialog = useCallback(
+    (workspace: CodeMateWorkspace) => {
+      setWorkspaceToDelete(workspace);
+    },
+    [],
+  );
+
+  /**
+   * 打开删除会话确认弹窗。
+   */
+  const handleOpenDeleteChatDialog = useCallback((chat: CodeMateChat) => {
+    setChatToDelete(chat);
+  }, []);
+
+  /**
+   * 关闭删除工作区确认弹窗。
+   */
+  const handleCloseDeleteWorkspaceDialog = useCallback(() => {
+    if (!isDeletingWorkspace) {
+      setWorkspaceToDelete(null);
+    }
+  }, [isDeletingWorkspace]);
+
+  /**
+   * 关闭删除会话确认弹窗。
+   */
+  const handleCloseDeleteChatDialog = useCallback(() => {
+    if (!isDeletingChat) {
+      setChatToDelete(null);
+    }
+  }, [isDeletingChat]);
+
+  /**
+   * 确认删除工作区，只删除本地 SQLite 记录，不删除真实文件夹。
+   */
+  const handleConfirmDeleteWorkspace = useCallback(async () => {
+    if (!workspaceToDelete) {
+      return;
+    }
+
+    setIsDeletingWorkspace(true);
+
+    try {
+      await deleteWorkspace(workspaceToDelete.id);
+      dispatch(removeWorkspace(workspaceToDelete.id));
+      dispatch(setFolderMessage(`已删除工作区：${workspaceToDelete.name}`));
+      setExpandedWorkspaces((prev) => {
+        const next = new Set(prev);
+        next.delete(workspaceToDelete.id);
+        return next;
+      });
+      setWorkspaceToDelete(null);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to delete local workspace', error);
+      dispatch(setFolderMessage('删除工作区失败，请稍后重试'));
+    } finally {
+      setIsDeletingWorkspace(false);
+    }
+  }, [dispatch, workspaceToDelete]);
+
+  /**
+   * 确认删除会话，关联消息由本地 SQLite 级联删除。
+   */
+  const handleConfirmDeleteChat = useCallback(async () => {
+    if (!chatToDelete) {
+      return;
+    }
+
+    setIsDeletingChat(true);
+
+    try {
+      await deleteLocalChat(chatToDelete.id);
+      dispatch(removeChat(chatToDelete.id));
+      dispatch(setFolderMessage(`已删除会话：${chatToDelete.title}`));
+      setChatToDelete(null);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to delete local chat', error);
+      dispatch(setFolderMessage('删除会话失败，请稍后重试'));
+    } finally {
+      setIsDeletingChat(false);
+    }
+  }, [chatToDelete, dispatch]);
 
   /**
    * 打开系统文件夹选择器，并把选中的文件夹写入本地 SQLite。
@@ -433,6 +662,8 @@ export default function ChatMateSidebar() {
                 )}
                 isExpanded={expandedWorkspaces.has(workspace.id)}
                 onAddChat={handleCreateChat}
+                onDeleteChatClick={handleOpenDeleteChatDialog}
+                onDeleteWorkspaceClick={handleOpenDeleteWorkspaceDialog}
                 onSelectChat={handleSelectChat}
                 onToggleExpand={handleToggleExpandWorkspace}
                 selectedChatId={selectedChatId}
@@ -496,12 +727,69 @@ export default function ChatMateSidebar() {
                 key={chat.id}
                 chat={chat}
                 isSelected={selectedChatId === chat.id}
+                onDeleteChatClick={handleOpenDeleteChatDialog}
                 onSelectChat={handleSelectChat}
               />
             ))
           )}
         </List>
       </Box>
+      <Dialog
+        open={Boolean(chatToDelete)}
+        onClose={handleCloseDeleteChatDialog}
+        aria-labelledby="delete-chat-dialog-title"
+      >
+        <DialogTitle id="delete-chat-dialog-title">确认删除会话</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: 13 }}>
+            删除后会移除“{chatToDelete?.title}”及其消息记录。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            disabled={isDeletingChat}
+            onClick={handleCloseDeleteChatDialog}
+          >
+            取消
+          </Button>
+          <Button
+            color="error"
+            disabled={isDeletingChat}
+            onClick={handleConfirmDeleteChat}
+          >
+            {isDeletingChat ? '删除中...' : '确认删除'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={Boolean(workspaceToDelete)}
+        onClose={handleCloseDeleteWorkspaceDialog}
+        aria-labelledby="delete-workspace-dialog-title"
+      >
+        <DialogTitle id="delete-workspace-dialog-title">
+          确认删除工作区
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: 13 }}>
+            {`删除后会移除“${workspaceToDelete?.name || ''}”及其下面的任务和消息记录，不会删除电脑上的真实文件夹。`}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            disabled={isDeletingWorkspace}
+            onClick={handleCloseDeleteWorkspaceDialog}
+          >
+            取消
+          </Button>
+          <Button
+            color="error"
+            disabled={isDeletingWorkspace}
+            onClick={handleConfirmDeleteWorkspace}
+          >
+            {isDeletingWorkspace ? '删除中...' : '确认删除'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

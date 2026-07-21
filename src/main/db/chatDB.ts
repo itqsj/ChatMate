@@ -159,6 +159,15 @@ export const createWorkspace = ({
 };
 
 /**
+ * 删除指定工作区，SQLite 会级联删除它下面的任务和消息。
+ */
+export const deleteWorkspace = (workspaceId: string): string => {
+  getDb().prepare('DELETE FROM workspaces WHERE id = ?').run(workspaceId);
+
+  return workspaceId;
+};
+
+/**
  * 查询全部本地聊天窗口。
  */
 export const listChats = (): LocalChat[] => {
@@ -213,6 +222,15 @@ export const createChat = ({
     );
 
   return chat;
+};
+
+/**
+ * 删除指定聊天窗口，SQLite 会级联删除它下面的消息。
+ */
+export const deleteChat = (chatId: string): string => {
+  getDb().prepare('DELETE FROM chats WHERE id = ?').run(chatId);
+
+  return chatId;
 };
 
 /**

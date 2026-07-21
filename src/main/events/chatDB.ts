@@ -5,6 +5,8 @@ import {
   createChat,
   createMessage,
   createWorkspace,
+  deleteChat,
+  deleteWorkspace,
   listChats,
   listMessages,
   listWorkspaces,
@@ -32,6 +34,18 @@ const registerChatDBEvents = () => {
     }
   });
 
+  ipcMain.handle(
+    IPC_CHANNELS.DELETE_WORKSPACE,
+    (_event, workspaceId: string) => {
+      try {
+        return deleteWorkspace(workspaceId);
+      } catch (error) {
+        log.error('Failed to delete local workspace', error);
+        throw error;
+      }
+    },
+  );
+
   ipcMain.handle(IPC_CHANNELS.LIST_CHATS, () => {
     try {
       return listChats();
@@ -46,6 +60,15 @@ const registerChatDBEvents = () => {
       return createChat(payload);
     } catch (error) {
       log.error('Failed to create local chat', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.DELETE_CHAT, (_event, chatId: string) => {
+    try {
+      return deleteChat(chatId);
+    } catch (error) {
+      log.error('Failed to delete local chat', error);
       throw error;
     }
   });

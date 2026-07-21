@@ -1,5 +1,7 @@
 import codeMateReducer, {
   createChat,
+  removeChat,
+  removeWorkspace,
   selectChat,
   setWorkspaces,
 } from '@renderer/store/codeMateSlice';
@@ -53,5 +55,91 @@ describe('codeMateSlice', () => {
     );
 
     expect(state.workspaces[0].name).toBe('demo-app');
+  });
+
+  it('should remove workspace and its chats', () => {
+    const state = codeMateReducer(
+      {
+        chats: [
+          {
+            createdAt: now,
+            id: 'chat-1',
+            time: '刚刚',
+            title: '工作区任务',
+            updatedAt: now,
+            workspaceId: 'workspace-1',
+          },
+          {
+            createdAt: now,
+            id: 'chat-2',
+            time: '刚刚',
+            title: '普通任务',
+            updatedAt: now,
+          },
+        ],
+        folderMessage: '',
+        messages: [
+          {
+            chatId: 'chat-1',
+            content: 'hello',
+            createdAt: now,
+            id: 'message-1',
+            role: 'user',
+            updatedAt: now,
+          },
+        ],
+        selectedChatId: 'chat-1',
+        workspaces: [
+          {
+            createdAt: now,
+            id: 'workspace-1',
+            name: 'demo-app',
+            path: 'C:\\Work\\demo-app',
+            updatedAt: now,
+          },
+        ],
+      },
+      removeWorkspace('workspace-1'),
+    );
+
+    expect(state.workspaces).toEqual([]);
+    expect(state.chats).toHaveLength(1);
+    expect(state.chats[0].id).toBe('chat-2');
+    expect(state.selectedChatId).toBe('');
+    expect(state.messages).toEqual([]);
+  });
+
+  it('should remove selected chat and clear messages', () => {
+    const state = codeMateReducer(
+      {
+        chats: [
+          {
+            createdAt: now,
+            id: 'chat-1',
+            time: '刚刚',
+            title: '待删除会话',
+            updatedAt: now,
+          },
+        ],
+        folderMessage: '',
+        messages: [
+          {
+            chatId: 'chat-1',
+            content: 'hello',
+            createdAt: now,
+            id: 'message-1',
+            role: 'user',
+            updatedAt: now,
+          },
+        ],
+        selectedChatId: 'chat-1',
+        workspaces: [],
+      },
+      removeChat('chat-1'),
+    );
+
+    expect(state.chats).toEqual([]);
+    expect(state.selectedChatId).toBe('');
+    expect(state.messages).toEqual([]);
   });
 });
