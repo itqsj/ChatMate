@@ -12,6 +12,7 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain, dialog, Menu } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import registerEvents from '@/main/events';
 import MenuBuilder from '@/main/menu';
 import { resolveHtmlPath } from '@/main/util';
 
@@ -25,6 +26,9 @@ class AppUpdater {
 
 let mainWindow: BrowserWindow | null = null;
 
+// 注册 Electron 主进程事件，具体模块在 src/events 下拆分。
+// 注册 Electron 主进程事件，具体模块在 src/main/events 下拆分。
+registerEvents();
 ipcMain.handle('dialog:open-folder', async () => {
   try {
     if (!mainWindow) {

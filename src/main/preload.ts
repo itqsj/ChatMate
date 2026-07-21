@@ -1,6 +1,18 @@
 // Disable no-unused-vars, broken for spread args
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { IPC_CHANNELS } from '@/constants/ipc';
+import type {
+  CreateChatParams,
+  CreateMessageParams,
+  CreateWorkspaceParams,
+  LocalChat,
+  LocalMessage,
+  LocalWorkspace,
+} from '@/types/chatDB';
+
+// 左侧内容本地存储
+type LocalDataChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
 export type Channels =
   | 'ipc-example'
@@ -10,7 +22,8 @@ export type Channels =
   | 'window:open-external'
   | 'window:reload'
   | 'window:toggle-full-screen'
-  | 'window:toggle-maximize';
+  | 'window:toggle-maximize'
+  | LocalDataChannel;
 
 export type OpenFolderResult = {
   canceled: boolean;
@@ -29,6 +42,26 @@ const electronHandler = {
   },
   openExternal(url: string): Promise<void> {
     return ipcRenderer.invoke('window:open-external', url);
+  },
+  chatDB: {
+    createChat(data: CreateChatParams): Promise<LocalChat> {
+      return ipcRenderer.invoke(IPC_CHANNELS.CREATE_CHAT, data);
+    },
+    createMessage(data: CreateMessageParams): Promise<LocalMessage> {
+      return ipcRenderer.invoke(IPC_CHANNELS.CREATE_MESSAGE, data);
+    },
+    createWorkspace(data: CreateWorkspaceParams): Promise<LocalWorkspace> {
+      return ipcRenderer.invoke(IPC_CHANNELS.CREATE_WORKSPACE, data);
+    },
+    listChats(): Promise<LocalChat[]> {
+      return ipcRenderer.invoke(IPC_CHANNELS.LIST_CHATS);
+    },
+    listMessages(chatId: string): Promise<LocalMessage[]> {
+      return ipcRenderer.invoke(IPC_CHANNELS.LIST_MESSAGES, chatId);
+    },
+    listWorkspaces(): Promise<LocalWorkspace[]> {
+      return ipcRenderer.invoke(IPC_CHANNELS.LIST_WORKSPACES);
+    },
   },
   reloadWindow(): void {
     ipcRenderer.send('window:reload');

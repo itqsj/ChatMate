@@ -1,4 +1,6 @@
 import { CHAT_STREAM_API_URL, CHAT_STREAM_EVENT } from '@/constants/chat';
+import type { CreateChatParams, CreateMessageParams } from '@/types/chatDB';
+import type { CodeMateChat, CodeMateMessage } from '@renderer/types/codeMate';
 
 type StreamChatParams = {
   message: string;
@@ -8,6 +10,90 @@ type StreamChatParams = {
 type ServerSentEvent = {
   data: string;
   event: string;
+};
+
+/**
+ * 把更新时间转换为左侧栏展示时间，SQLite 不单独存展示字段。
+ */
+const formatChatTime = (updatedAt: string) => {
+  const date = new Date(updatedAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toLocaleString('zh-CN', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+  });
+};
+
+/**
+ * 把 SQLite 聊天记录转换为页面使用的数据结构。
+ */
+const mapChat = (chat: Omit<CodeMateChat, 'time'>): CodeMateChat => {
+  return {
+    ...chat,
+    time: formatChatTime(chat.updatedAt),
+  };
+};
+
+/**
+ * 从本地 SQLite 查询聊天窗口列表。
+ */
+export const listChats = async (): Promise<CodeMateChat[]> => {
+  try {
+    const chats = await window.electron.chatDB.listChats();
+    return chats.map(mapChat);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '查询任务失败';
+    throw new Error(message);
+  }
+};
+
+/**
+ * 写入本地 SQLite 聊天窗口。
+ */
+export const createLocalChat = async (
+  data: CreateChatParams,
+): Promise<CodeMateChat> => {
+  try {
+    const chat = await window.electron.chatDB.createChat(data);
+    return mapChat(chat);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '创建任务失败';
+    throw new Error(message);
+  }
+};
+
+/**
+ * 从本地 SQLite 查询指定聊天窗口的消息。
+ */
+export const listMessages = async (
+  chatId: string,
+): Promise<CodeMateMessage[]> => {
+  try {
+    return await window.electron.chatDB.listMessages(chatId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '查询消息失败';
+    throw new Error(message);
+  }
+};
+
+/**
+ * 写入本地 SQLite 聊天消息。
+ */
+export const createLocalMessage = async (
+  data: CreateMessageParams,
+): Promise<CodeMateMessage> => {
+  try {
+    return await window.electron.chatDB.createMessage(data);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '保存消息失败';
+    throw new Error(message);
+  }
 };
 
 /**
@@ -69,22 +155,26 @@ const readStream = async (
   let buffer = '';
 
   try {
-    while (true) {
+    let isReading = true;
+
+    while (isReading) {
+      // 流式读取必须按顺序等待每个分片，避免消息乱序。
+      // eslint-disable-next-line no-await-in-loop
       const { done, value } = await reader.read();
 
       if (done) {
-        break;
+        isReading = false;
+      } else {
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split(/\r?\n\r?\n/);
+        buffer = events.pop() || '';
+
+        events.forEach((eventText) => {
+          if (eventText.trim() !== '') {
+            handleSseEvent(eventText, onMessage);
+          }
+        });
       }
-
-      buffer += decoder.decode(value, { stream: true });
-      const events = buffer.split(/\r?\n\r?\n/);
-      buffer = events.pop() || '';
-
-      events.forEach((eventText) => {
-        if (eventText.trim() !== '') {
-          handleSseEvent(eventText, onMessage);
-        }
-      });
     }
 
     buffer += decoder.decode();
@@ -98,7 +188,7 @@ const readStream = async (
 };
 
 /**
- * 请求后端聊天流式接口，并把返回的文本片段交给回调处理。
+ * 请求后端 DeepSeek 流式接口；聊天记录保存由本地 SQLite 负责。
  */
 export const streamChat = async ({ message, onMessage }: StreamChatParams) => {
   try {

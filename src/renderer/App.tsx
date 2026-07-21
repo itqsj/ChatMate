@@ -15,10 +15,11 @@ import {
 import ChatMateDesktop from '@renderer/views/chatMate/ChatMateDesktop';
 import Settings from '@renderer/views/settings/Settings';
 import GlobalSnackbar from '@renderer/components/GlobalSnackbar';
+import { selectThemeMode } from '@renderer/store/selectors';
 
 export default function App() {
   const dispatch = useAppDispatch();
-  const mode = useAppSelector((state) => state.theme.mode);
+  const mode = useAppSelector(selectThemeMode);
   const theme = useMemo(() => createAppTheme(mode), [mode]);
 
   /**

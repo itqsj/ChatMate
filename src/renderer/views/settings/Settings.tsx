@@ -10,6 +10,7 @@ import { alpha } from '@mui/material/styles';
 import { COLOR_MODE } from '@/constants/theme';
 import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
 import { setColorMode } from '@renderer/store/themeSlice';
+import { selectThemeMode } from '@renderer/store/selectors';
 import type { ColorMode } from '@renderer/theme';
 
 const THEME_OPTIONS: Array<{
@@ -34,7 +35,7 @@ const THEME_OPTIONS: Array<{
  */
 export default function Settings() {
   const dispatch = useAppDispatch();
-  const mode = useAppSelector((state) => state.theme.mode);
+  const mode = useAppSelector(selectThemeMode);
   const [open, setOpen] = useState(false);
 
   /**

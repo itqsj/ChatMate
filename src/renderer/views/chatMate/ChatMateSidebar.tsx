@@ -1,34 +1,44 @@
-import { memo, useCallback, useState } from 'react';
+/* eslint-disable no-use-before-define */
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CreateOutlinedIcon from '@mui/icons-material/CreateOutlined';
-import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
+import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import { createLocalChat, listChats, listMessages } from '@renderer/api/chat';
+import { createWorkspace, listWorkspaces } from '@renderer/api/workspace';
 import {
-  addWorkspaceFromPath,
   createChat,
   selectChat,
+  setChats,
+  setFolderMessage,
+  setMessages,
+  setWorkspaces,
+  upsertWorkspace,
+} from '@renderer/store/codeMateSlice';
+import {
   selectCodeMateChats,
   selectCodeMateSelectedChatId,
   selectCodeMateWorkspaces,
-  setFolderMessage,
-} from '@renderer/store/codeMateSlice';
+} from '@renderer/store/selectors';
+import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
 import type { CodeMateChat, CodeMateWorkspace } from '@renderer/types/codeMate';
-import { createWorkspace } from '@renderer/api/workspace';
 
 type WorkspaceItemProps = {
   chats: CodeMateChat[];
   isExpanded: boolean;
+  onAddChat: (workspaceId: string) => Promise<void>;
+  onSelectChat: (chatId: string) => Promise<void>;
   onToggleExpand: (workspaceId: string) => void;
-  onAddChat: (workspaceId: string) => void;
-  onSelectChat: (chatId: string) => void;
   selectedChatId: string;
   workspace: CodeMateWorkspace;
 };
@@ -36,18 +46,26 @@ type WorkspaceItemProps = {
 type ChatItemProps = {
   chat: CodeMateChat;
   isSelected: boolean;
-  onSelectChat: (chatId: string) => void;
+  onSelectChat: (chatId: string) => Promise<void>;
 };
 
 /**
- * 渲染单个工作区条目，负责展示名称、路径和折叠/展开功能，并在内部渲染其所属的聊天。
+ * 根据文件夹路径生成工作区名称。
+ */
+const getFolderName = (folderPath: string) => {
+  const segments = folderPath.split(/[\\/]/).filter(Boolean);
+  return segments[segments.length - 1] || 'Workspace';
+};
+
+/**
+ * 渲染单个工作区条目，并在展开后展示它下面的任务。
  */
 const WorkspaceItem = memo(function WorkspaceItem({
   chats,
   isExpanded,
-  onToggleExpand,
   onAddChat,
   onSelectChat,
+  onToggleExpand,
   selectedChatId,
   workspace,
 }: WorkspaceItemProps) {
@@ -56,10 +74,10 @@ const WorkspaceItem = memo(function WorkspaceItem({
       <Box
         onClick={() => onToggleExpand(workspace.id)}
         sx={(theme) => ({
-          borderRadius: 1.5,
+          alignItems: 'center',
+          borderRadius: 1,
           cursor: 'pointer',
           display: 'flex',
-          alignItems: 'center',
           gap: 0.5,
           minHeight: 36,
           px: 0.5,
@@ -72,37 +90,44 @@ const WorkspaceItem = memo(function WorkspaceItem({
           },
         })}
       >
-        <IconButton size="small" sx={{ p: 0.25, width: 20, height: 20 }}>
+        <IconButton
+          aria-label={isExpanded ? '收起工作区' : '展开工作区'}
+          size="small"
+          sx={{ height: 20, p: 0.25, width: 20 }}
+        >
           {isExpanded ? (
             <ExpandMoreIcon sx={{ fontSize: 16 }} />
           ) : (
             <ChevronRightIcon sx={{ fontSize: 16 }} />
           )}
         </IconButton>
-        <Typography sx={{ fontSize: 13, mt: 0.1 }}>📁</Typography>
-        <Box sx={{ minWidth: 0, flex: 1 }}>
+        <FolderOpenOutlinedIcon sx={{ fontSize: 15 }} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap sx={{ fontSize: 12, fontWeight: 700 }}>
             {workspace.name}
           </Typography>
         </Box>
-        <IconButton
-          className="workspace-action"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddChat(workspace.id);
-          }}
-          sx={(theme) => ({
-            color: theme.palette.text.secondary,
-            opacity: 0,
-            width: 22,
-            height: 22,
-            '&:hover': {
-              color: theme.palette.primary.main,
-            },
-          })}
-        >
-          <CreateOutlinedIcon sx={{ fontSize: 14 }} />
-        </IconButton>
+        <Tooltip title="新建任务">
+          <IconButton
+            aria-label={`${workspace.name} 新建任务`}
+            className="workspace-action"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddChat(workspace.id);
+            }}
+            sx={(theme) => ({
+              color: theme.palette.text.secondary,
+              height: 22,
+              opacity: 0,
+              width: 22,
+              '&:hover': {
+                color: theme.palette.primary.main,
+              },
+            })}
+          >
+            <CreateOutlinedIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
       </Box>
       {isExpanded && chats.length > 0 && (
         <List disablePadding sx={{ pl: 3 }}>
@@ -121,7 +146,7 @@ const WorkspaceItem = memo(function WorkspaceItem({
 });
 
 /**
- * 渲染单条聊天记录，负责展示标题、时间和更多操作入口。
+ * 渲染单条任务记录。
  */
 const ChatItem = memo(function ChatItem({
   chat,
@@ -131,12 +156,14 @@ const ChatItem = memo(function ChatItem({
   return (
     <ListItemButton
       selected={isSelected}
-      onClick={() => onSelectChat(chat.id)}
+      onClick={() => {
+        onSelectChat(chat.id);
+      }}
       sx={(theme) => ({
         border: `1px solid ${
           isSelected ? alpha(theme.palette.primary.main, 0.28) : 'transparent'
         }`,
-        borderRadius: 1.5,
+        borderRadius: 1,
         mb: 0.25,
         minHeight: 36,
         px: 0.75,
@@ -152,7 +179,7 @@ const ChatItem = memo(function ChatItem({
         },
       })}
     >
-      <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: 12 }}>
           {chat.title}
         </Typography>
@@ -167,25 +194,26 @@ const ChatItem = memo(function ChatItem({
           {chat.time}
         </Typography>
       </Box>
-      <IconButton
-        aria-label={`${chat.title} 更多操作`}
-        className="chat-action"
-        sx={(theme) => ({
-          color: theme.palette.text.secondary,
-          fontSize: 11,
-          height: 22,
-          opacity: isSelected ? 1 : 0,
-          width: 22,
-        })}
-      >
-        ...
-      </IconButton>
+      <Tooltip title="更多操作">
+        <IconButton
+          aria-label={`${chat.title} 更多操作`}
+          className="chat-action"
+          sx={(theme) => ({
+            color: theme.palette.text.secondary,
+            height: 22,
+            opacity: isSelected ? 1 : 0,
+            width: 22,
+          })}
+        >
+          <MoreHorizIcon sx={{ fontSize: 15 }} />
+        </IconButton>
+      </Tooltip>
     </ListItemButton>
   );
 });
 
 /**
- * 渲染 Codex 风格左侧栏，状态从 Redux 读取，避免父组件层层透传。
+ * 渲染左侧栏，并把工作区、任务和消息列表接入本地 SQLite。
  */
 export default function ChatMateSidebar() {
   const dispatch = useAppDispatch();
@@ -198,40 +226,90 @@ export default function ChatMateSidebar() {
   );
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
 
+  useEffect(() => {
+    let canceled = false;
+
+    /**
+     * 应用启动时从本地 SQLite 回填侧边栏数据。
+     */
+    const loadLocalData = async () => {
+      try {
+        const [workspaceList, chatList] = await Promise.all([
+          listWorkspaces(),
+          listChats(),
+        ]);
+
+        if (canceled) {
+          return;
+        }
+
+        dispatch(setWorkspaces(workspaceList));
+        dispatch(setChats(chatList));
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load local data', error);
+        dispatch(setFolderMessage('加载本地数据失败，请稍后重试'));
+      }
+    };
+
+    loadLocalData();
+
+    return () => {
+      canceled = true;
+    };
+  }, [dispatch]);
+
   /**
-   * 处理新建聊天按钮，创建一条空聊天记录。
+   * 新建任务并写入本地 SQLite。
    */
   const handleCreateChat = useCallback(
-    (workspaceId?: string) => {
-      dispatch(
-        createChat({
-          id: `chat-${Date.now()}`,
-          time: '刚刚',
-          title: '新聊天',
+    async (workspaceId?: string) => {
+      try {
+        const chat = await createLocalChat({
+          title: '新任务',
           workspaceId,
-        }),
-      );
-      if (workspaceId) {
-        setExpandedWorkspaces((prev) => {
-          const next = new Set(prev);
-          next.add(workspaceId);
-          return next;
         });
+
+        dispatch(createChat(chat));
+
+        if (workspaceId) {
+          setExpandedWorkspaces((prev) => {
+            const next = new Set(prev);
+            next.add(workspaceId);
+            return next;
+          });
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to create local chat', error);
+        dispatch(setFolderMessage('创建任务失败，请稍后重试'));
       }
     },
     [dispatch],
   );
 
   /**
-   * 处理聊天记录点击，切换当前选中的聊天。
+   * 切换任务，并从本地 SQLite 查询该任务下的消息。
    */
   const handleSelectChat = useCallback(
-    (chatId: string) => {
+    async (chatId: string) => {
       dispatch(selectChat(chatId));
+
+      try {
+        const nextMessages = await listMessages(chatId);
+        dispatch(setMessages(nextMessages));
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load local messages', error);
+        dispatch(setFolderMessage('加载消息失败，请稍后重试'));
+      }
     },
     [dispatch],
   );
 
+  /**
+   * 展开或收起工作区。
+   */
   const handleToggleExpandWorkspace = useCallback((workspaceId: string) => {
     setExpandedWorkspaces((prev) => {
       const next = new Set(prev);
@@ -245,7 +323,7 @@ export default function ChatMateSidebar() {
   }, []);
 
   /**
-   * 调用 Electron 文件夹选择器，并把选中的文件夹写入 Redux 工作区列表。
+   * 打开系统文件夹选择器，并把选中的文件夹写入本地 SQLite。
    */
   const handleOpenFolder = useCallback(async () => {
     try {
@@ -257,13 +335,13 @@ export default function ChatMateSidebar() {
       }
 
       const folderPath = result.filePaths[0];
-      const segments = folderPath.split(/[\\/]/).filter(Boolean);
-      const name = segments[segments.length - 1] || 'Workspace';
+      const name = getFolderName(folderPath);
 
       setIsCreatingWorkspace(true);
       try {
-        await createWorkspace({ name, path: folderPath });
-        dispatch(addWorkspaceFromPath(folderPath));
+        const workspace = await createWorkspace({ name, path: folderPath });
+        dispatch(upsertWorkspace(workspace));
+        dispatch(setFolderMessage(`已打开文件夹：${folderPath}`));
       } finally {
         setIsCreatingWorkspace(false);
       }
@@ -275,7 +353,10 @@ export default function ChatMateSidebar() {
     }
   }, [dispatch]);
 
-  const unassociatedChats = chats.filter((chat) => !chat.workspaceId);
+  const unassociatedChats = useMemo(
+    () => chats.filter((chat) => !chat.workspaceId),
+    [chats],
+  );
 
   return (
     <Box
@@ -308,26 +389,27 @@ export default function ChatMateSidebar() {
           >
             工作区
           </Typography>
-          <IconButton
-            aria-label="打开文件夹"
-            onClick={handleOpenFolder}
-            disabled={isCreatingWorkspace}
-            sx={(theme) => ({
-              color: theme.palette.text.secondary,
-              fontSize: 12,
-              height: 22,
-              width: 22,
-              '&:hover': {
-                color: theme.palette.primary.main,
-              },
-            })}
-          >
-            {isCreatingWorkspace ? (
-              <CircularProgress size={12} color="inherit" />
-            ) : (
-              '📂'
-            )}
-          </IconButton>
+          <Tooltip title="打开文件夹">
+            <IconButton
+              aria-label="打开文件夹"
+              disabled={isCreatingWorkspace}
+              onClick={handleOpenFolder}
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                height: 22,
+                width: 22,
+                '&:hover': {
+                  color: theme.palette.primary.main,
+                },
+              })}
+            >
+              {isCreatingWorkspace ? (
+                <CircularProgress size={12} color="inherit" />
+              ) : (
+                <FolderOpenOutlinedIcon sx={{ fontSize: 15 }} />
+              )}
+            </IconButton>
+          </Tooltip>
         </Stack>
 
         <Stack spacing={0.25} sx={{ mb: 1 }}>
@@ -346,7 +428,9 @@ export default function ChatMateSidebar() {
             workspaces.map((workspace) => (
               <WorkspaceItem
                 key={workspace.id}
-                chats={chats.filter((c) => c.workspaceId === workspace.id)}
+                chats={chats.filter(
+                  (chat) => chat.workspaceId === workspace.id,
+                )}
                 isExpanded={expandedWorkspaces.has(workspace.id)}
                 onAddChat={handleCreateChat}
                 onSelectChat={handleSelectChat}
@@ -374,19 +458,24 @@ export default function ChatMateSidebar() {
           >
             任务
           </Typography>
-          <IconButton
-            onClick={() => handleCreateChat()}
-            sx={(theme) => ({
-              color: theme.palette.text.secondary,
-              width: 22,
-              height: 22,
-              '&:hover': {
-                color: theme.palette.primary.main,
-              },
-            })}
-          >
-            <CreateOutlinedIcon sx={{ fontSize: 14 }} />
-          </IconButton>
+          <Tooltip title="新建任务">
+            <IconButton
+              aria-label="新建任务"
+              onClick={() => {
+                handleCreateChat();
+              }}
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                height: 22,
+                width: 22,
+                '&:hover': {
+                  color: theme.palette.primary.main,
+                },
+              })}
+            >
+              <CreateOutlinedIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Tooltip>
         </Stack>
 
         <List disablePadding>

@@ -5,6 +5,7 @@ import Typography from '@mui/material/Typography';
 import { COLOR_MODE } from '@/constants/theme';
 import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
 import { toggleColorMode } from '@renderer/store/themeSlice';
+import { selectThemeMode } from '@renderer/store/selectors';
 import icon from '@/assets/icon.svg';
 
 /**
@@ -12,7 +13,7 @@ import icon from '@/assets/icon.svg';
  */
 export default function Home() {
   const dispatch = useAppDispatch();
-  const mode = useAppSelector((state) => state.theme.mode);
+  const mode = useAppSelector(selectThemeMode);
 
   return (
     <Box

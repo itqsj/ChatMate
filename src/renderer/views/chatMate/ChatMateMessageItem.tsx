@@ -1,7 +1,9 @@
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import type { CodeMateMessage } from '@renderer/types/codeMate';
@@ -11,12 +13,24 @@ type ChatMateMessageItemProps = {
 };
 
 /**
- * 渲染单条聊天消息，负责区分用户和 AI 的气泡样式。
+ * 渲染单条聊天消息，区分用户和 AI 的气泡样式。
  */
 export default function ChatMateMessageItem({
   message,
 }: ChatMateMessageItemProps) {
   const isUser = message.role === 'user';
+
+  /**
+   * 复制 AI 消息内容，失败时只记录到控制台，避免打断聊天流程。
+   */
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to copy message', error);
+    }
+  };
 
   return (
     <Stack
@@ -34,7 +48,7 @@ export default function ChatMateMessageItem({
               ? alpha(theme.palette.primary.main, 0.28)
               : theme.palette.divider
           }`,
-          borderRadius: 1.5,
+          borderRadius: 1,
           maxWidth: '76%',
           p: 1,
         })}
@@ -48,7 +62,7 @@ export default function ChatMateMessageItem({
             sx={(theme) => ({
               bgcolor: alpha(theme.palette.background.paper, 0.84),
               border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 1.5,
+              borderRadius: 1,
               color: theme.palette.text.primary,
               fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
               fontSize: 11,
@@ -63,17 +77,19 @@ export default function ChatMateMessageItem({
         )}
         {!isUser && (
           <Stack direction="row" spacing={0.25} sx={{ mt: 0.5 }}>
-            <IconButton
-              aria-label="AI 消息操作 复制"
-              sx={(theme) => ({
-                color: theme.palette.text.secondary,
-                fontSize: 12,
-                height: 24,
-                width: 24,
-              })}
-            >
-              📋
-            </IconButton>
+            <Tooltip title="复制">
+              <IconButton
+                aria-label="复制 AI 消息"
+                onClick={handleCopy}
+                sx={(theme) => ({
+                  color: theme.palette.text.secondary,
+                  height: 24,
+                  width: 24,
+                })}
+              >
+                <ContentCopyIcon sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Tooltip>
           </Stack>
         )}
       </Paper>

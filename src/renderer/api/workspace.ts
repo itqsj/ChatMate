@@ -1,14 +1,28 @@
-import { http } from './request';
+import type { CreateWorkspaceParams } from '@/types/chatDB';
+import type { CodeMateWorkspace } from '@renderer/types/codeMate';
 
-export type CreateWorkspaceRequest = {
-  name: string;
-  path: string;
+/**
+ * 从本地 SQLite 查询工作区列表。
+ */
+export const listWorkspaces = async (): Promise<CodeMateWorkspace[]> => {
+  try {
+    return await window.electron.chatDB.listWorkspaces();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '查询工作区失败';
+    throw new Error(message);
+  }
 };
 
-export const createWorkspace = (data: CreateWorkspaceRequest) => {
-  return http<any>({
-    url: '/api/workspace',
-    method: 'post',
-    data,
-  });
+/**
+ * 写入本地 SQLite 工作区；路径已存在时返回已有记录。
+ */
+export const createWorkspace = async (
+  data: CreateWorkspaceParams,
+): Promise<CodeMateWorkspace> => {
+  try {
+    return await window.electron.chatDB.createWorkspace(data);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '创建工作区失败';
+    throw new Error(message);
+  }
 };

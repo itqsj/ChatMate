@@ -1,15 +1,35 @@
 import codeMateReducer, {
-  addWorkspaceFromPath,
+  createChat,
   selectChat,
+  setWorkspaces,
 } from '@renderer/store/codeMateSlice';
+
+const now = '2026-07-20T00:00:00.000Z';
 
 describe('codeMateSlice', () => {
   it('should create initial CodeMate state', () => {
     const state = codeMateReducer(undefined, { type: 'unknown' });
 
-    expect(state.workspaces[0].name).toBe('My-Project');
+    expect(state.workspaces).toEqual([]);
+    expect(state.chats).toEqual([]);
+    expect(state.messages).toEqual([]);
+    expect(state.selectedChatId).toBe('');
+  });
+
+  it('should create and select chat', () => {
+    const state = codeMateReducer(
+      undefined,
+      createChat({
+        createdAt: now,
+        id: 'chat-1',
+        time: '刚刚',
+        title: 'Bug 修复',
+        updatedAt: now,
+      }),
+    );
+
+    expect(state.chats[0].title).toBe('Bug 修复');
     expect(state.selectedChatId).toBe('chat-1');
-    expect(state.chats.some((chat) => chat.title === 'Bug 修复')).toBe(false);
   });
 
   it('should select chat', () => {
@@ -18,15 +38,20 @@ describe('codeMateSlice', () => {
     expect(state.selectedChatId).toBe('chat-2');
   });
 
-  it('should add selected folder as workspace', () => {
+  it('should set workspaces from local SQLite data', () => {
     const state = codeMateReducer(
       undefined,
-      addWorkspaceFromPath('C:\\Work\\demo-app'),
+      setWorkspaces([
+        {
+          createdAt: now,
+          id: 'workspace-1',
+          name: 'demo-app',
+          path: 'C:\\Work\\demo-app',
+          updatedAt: now,
+        },
+      ]),
     );
 
-    expect(state.folderMessage).toBe('已打开文件夹: C:\\Work\\demo-app');
-    expect(
-      state.workspaces.some((workspace) => workspace.name === 'demo-app'),
-    ).toBe(true);
+    expect(state.workspaces[0].name).toBe('demo-app');
   });
 });

@@ -1,3 +1,4 @@
+import { useState, type KeyboardEvent } from 'react';
 import SendIcon from '@mui/icons-material/Send';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import Box from '@mui/material/Box';
@@ -6,16 +7,16 @@ import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
-import { useStreamChat } from '@renderer/hooks/useStreamChat';
+import useStreamChat from '@renderer/hooks/useStreamChat';
 import {
   selectCodeMateChats,
   selectCodeMateSelectedChatId,
   selectCodeMateWorkspaces,
-} from '@renderer/store/codeMateSlice';
+} from '@renderer/store/selectors';
 import { useAppSelector } from '@renderer/store/hooks';
-import { useState, type KeyboardEvent } from 'react';
 
 /**
  * 渲染底部输入区，并负责发送聊天消息。
@@ -24,9 +25,9 @@ export default function ChatMateComposer() {
   const selectedChatId = useAppSelector(selectCodeMateSelectedChatId);
   const chats = useAppSelector(selectCodeMateChats);
   const workspaces = useAppSelector(selectCodeMateWorkspaces);
-  const selectedChat = chats.find((c) => c.id === selectedChatId);
+  const selectedChat = chats.find((chat) => chat.id === selectedChatId);
   const activeWorkspace = workspaces.find(
-    (w) => w.id === selectedChat?.workspaceId,
+    (workspace) => workspace.id === selectedChat?.workspaceId,
   );
 
   const { errorMessage, isStreaming, sendMessage } = useStreamChat();
@@ -34,7 +35,7 @@ export default function ChatMateComposer() {
   const workspaceName = activeWorkspace?.name || '未选择工作区';
 
   /**
-   * 把当前输入内容发送到后端聊天流式接口。
+   * 把当前输入内容发送到后端流式接口，并由 hook 写入本地 SQLite。
    */
   const handleSend = async () => {
     try {
@@ -43,6 +44,7 @@ export default function ChatMateComposer() {
         setMessage('');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(error);
     }
   };
@@ -53,7 +55,7 @@ export default function ChatMateComposer() {
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
-      void handleSend();
+      handleSend();
     }
   };
 
@@ -71,8 +73,8 @@ export default function ChatMateComposer() {
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 2,
           boxShadow: theme.shadows[8],
-          mx: 'auto',
           maxWidth: 860,
+          mx: 'auto',
           overflow: 'hidden',
           p: 0.75,
         })}
@@ -119,18 +121,20 @@ export default function ChatMateComposer() {
             spacing={0.5}
             sx={{ alignItems: 'center', flexWrap: 'wrap' }}
           >
-            <IconButton
-              aria-label="上传文件"
-              sx={(theme) => ({
-                color: theme.palette.text.secondary,
-                height: 24,
-                width: 24,
-              })}
-            >
-              <UploadFileIcon sx={{ fontSize: 15 }} />
-            </IconButton>
+            <Tooltip title="上传文件">
+              <IconButton
+                aria-label="上传文件"
+                sx={(theme) => ({
+                  color: theme.palette.text.secondary,
+                  height: 24,
+                  width: 24,
+                })}
+              >
+                <UploadFileIcon sx={{ fontSize: 15 }} />
+              </IconButton>
+            </Tooltip>
             <Chip
-              label={`当前工作区 ${workspaceName}`}
+              label={`当前工作区：${workspaceName}`}
               size="small"
               sx={(theme) => ({
                 bgcolor: alpha(theme.palette.success.main, 0.12),
@@ -161,7 +165,7 @@ export default function ChatMateComposer() {
 
           <Button
             disabled={isStreaming || message.trim() === ''}
-            onClick={() => void handleSend()}
+            onClick={handleSend}
             startIcon={<SendIcon sx={{ fontSize: 15 }} />}
             sx={{ fontSize: 12, minHeight: 28, px: 1.5 }}
             variant="contained"

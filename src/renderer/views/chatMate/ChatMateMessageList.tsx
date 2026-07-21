@@ -1,15 +1,15 @@
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { useAppSelector } from '@renderer/store/hooks';
 import {
   selectCodeMateMessages,
   selectCodeMateSelectedChat,
-} from '@renderer/store/codeMateSlice';
+} from '@renderer/store/selectors';
+import { useAppSelector } from '@renderer/store/hooks';
 import ChatMateMessageItem from '@renderer/views/chatMate/ChatMateMessageItem';
 
 /**
- * 展示当前聊天标题和消息流。
+ * 展示当前聊天标题和消息列表。
  */
 export default function ChatMateMessageList() {
   const messages = useAppSelector(selectCodeMateMessages);

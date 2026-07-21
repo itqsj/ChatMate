@@ -1,13 +1,20 @@
 import { useCallback, useState } from 'react';
-import { streamChat } from '@renderer/api/chat';
+import {
+  createLocalChat,
+  createLocalMessage,
+  listChats,
+  streamChat,
+} from '@renderer/api/chat';
 import {
   appendChatMessage,
   appendChatMessageChunk,
   createChat,
-  selectCodeMateSelectedChatId,
   setChatMessageContent,
+  setChats,
 } from '@renderer/store/codeMateSlice';
+import { selectCodeMateSelectedChat } from '@renderer/store/selectors';
 import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
+import type { CodeMateChat } from '@renderer/types/codeMate';
 
 /**
  * 创建本地聊天消息 ID。
@@ -17,76 +24,88 @@ const createChatMessageId = () => {
 };
 
 /**
- * 创建本地聊天记录 ID。
- */
-const createChatId = () => {
-  return `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
-/**
  * 根据第一条用户消息生成聊天标题。
  */
 const createChatTitle = (content: string) => {
-  return content.length > 20 ? `${content.slice(0, 20)}...` : content;
+  const chars = Array.from(content);
+  return chars.length > 20 ? `${chars.slice(0, 20).join('')}...` : content;
 };
 
 /**
- * 发送用户消息，并按流式片段更新 AI 回复。
+ * 创建前端临时消息时间。
  */
-export const useStreamChat = () => {
+const getNow = () => new Date().toISOString();
+
+/**
+ * 发送用户消息，写入本地 SQLite，并按流式片段更新 AI 回复。
+ */
+const useStreamChat = () => {
   const dispatch = useAppDispatch();
-  const selectedChatId = useAppSelector(selectCodeMateSelectedChatId);
+  const selectedChat = useAppSelector(selectCodeMateSelectedChat);
   const [errorMessage, setErrorMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+
+  /**
+   * 刷新左侧栏任务列表，确保更新时间排序和 SQLite 一致。
+   */
+  const refreshChats = useCallback(async () => {
+    const nextChats = await listChats();
+    dispatch(setChats(nextChats));
+  }, [dispatch]);
 
   const sendMessage = useCallback(
     async (message: string) => {
       const content = message.trim();
 
-      // 空内容和正在输出时不再重复发送，避免生成无效请求。
+      // 空内容和正在输出时不重复发送，避免生成无效请求。
       if (content === '' || isStreaming) {
         return false;
       }
 
-      const assistantMessageId = createChatMessageId();
-
-      // 如果当前没有聊天记录，先用第一条用户消息创建一个新聊天。
-      if (selectedChatId === '') {
-        dispatch(
-          createChat({
-            id: createChatId(),
-            time: '刚刚',
-            title: createChatTitle(content),
-          }),
-        );
-      }
-
-      // 先把用户消息写入列表，让界面立即展示用户输入。
-      dispatch(
-        appendChatMessage({
-          content,
-          id: createChatMessageId(),
-          role: 'user',
-        }),
-      );
-
-      // 再插入一条空的 AI 消息，后续流式分片会持续追加到这条消息上。
-      dispatch(
-        appendChatMessage({
-          content: '',
-          id: assistantMessageId,
-          role: 'assistant',
-        }),
-      );
-
       setErrorMessage('');
       setIsStreaming(true);
 
+      const assistantMessageId = createChatMessageId();
+      let activeChat: CodeMateChat | null = selectedChat;
+      let assistantContent = '';
+
       try {
-        // 调用统一 API 方法，把后端返回的每个文本分片追加到 AI 消息。
+        // 没有选中任务时，用第一条消息创建本地任务。
+        if (!activeChat) {
+          activeChat = await createLocalChat({
+            title: createChatTitle(content),
+          });
+          dispatch(createChat(activeChat));
+        }
+
+        // 创建信息
+        const userMessage = await createLocalMessage({
+          chatId: activeChat.id,
+          content,
+          role: 'user',
+        });
+
+        dispatch(appendChatMessage(userMessage));
+        await refreshChats();
+
+        const now = getNow();
+        // 追加 AI 信息
+        dispatch(
+          appendChatMessage({
+            chatId: activeChat.id,
+            content: '',
+            createdAt: now,
+            id: assistantMessageId,
+            role: 'assistant',
+            updatedAt: now,
+          }),
+        );
+
         await streamChat({
           message: content,
           onMessage: (chunk) => {
+            assistantContent += chunk;
+            // 更新 AI 返回信息
             dispatch(
               appendChatMessageChunk({
                 chunk,
@@ -96,9 +115,28 @@ export const useStreamChat = () => {
           },
         });
 
+        if (assistantContent !== '') {
+          // 创建 AI 信息到数据库
+          const assistantMessage = await createLocalMessage({
+            chatId: activeChat.id,
+            content: assistantContent,
+            id: assistantMessageId,
+            role: 'assistant',
+          });
+
+          // 更新 AI 返回信息
+          dispatch(
+            setChatMessageContent({
+              content: assistantMessage.content,
+              id: assistantMessage.id,
+              updatedAt: assistantMessage.updatedAt,
+            }),
+          );
+          await refreshChats();
+        }
+
         return true;
       } catch (error) {
-        // 请求失败时保留 AI 占位消息，并把错误转换成用户可见的反馈。
         const nextErrorMessage =
           error instanceof Error ? error.message : '聊天接口请求失败';
 
@@ -107,16 +145,16 @@ export const useStreamChat = () => {
           setChatMessageContent({
             content: `请求失败：${nextErrorMessage}`,
             id: assistantMessageId,
+            updatedAt: getNow(),
           }),
         );
 
         return false;
       } finally {
-        // 无论成功还是失败，都要恢复发送按钮状态。
         setIsStreaming(false);
       }
     },
-    [dispatch, isStreaming, selectedChatId],
+    [dispatch, isStreaming, refreshChats, selectedChat],
   );
 
   return {
@@ -125,3 +163,5 @@ export const useStreamChat = () => {
     sendMessage,
   };
 };
+
+export default useStreamChat;
