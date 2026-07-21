@@ -2,7 +2,7 @@ import Box from '@mui/material/Box';
 import { alpha } from '@mui/material/styles';
 import ChatMateComposer from '@renderer/views/chatMate/ChatMateComposer';
 import ChatMateMessageList from '@renderer/views/chatMate/ChatMateMessageList';
-import ChatMateSidebar from '@renderer/views/chatMate/ChatMateSidebar';
+import ChatMateSidebar from '@renderer/views/chatMate/sidebar/ChatMateSidebar';
 import ChatMateWindowBar from '@renderer/views/chatMate/ChatMateWindowBar';
 
 /**
