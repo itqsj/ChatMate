@@ -5,12 +5,22 @@
       "name": "Electron: Main",
       "type": "node",
       "request": "launch",
-      "protocol": "inspector",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "start"],
-      "env": {
-        "MAIN_ARGS": "--inspect=5858 --remote-debugging-port=9223"
-      }
+      "runtimeArgs": [
+        "run",
+        "start:main"
+      ],
+      "port": 5858,
+      "timeout": 30000,
+      "console": "integratedTerminal",
+      "sourceMapPathOverrides": {
+        "webpack://electron-react-boilerplate/./src/*": "${workspaceFolder}/src/*",
+        "webpack://electron-react-boilerplate/src/*": "${workspaceFolder}/src/*"
+      },
+      "outFiles": [
+        "${workspaceFolder}/.erb/dll/**/*.js",
+        "${workspaceFolder}/release/app/dist/**/*.js"
+      ]
     },
     {
       "name": "Electron: Renderer",
@@ -24,7 +34,10 @@
   "compounds": [
     {
       "name": "Electron: All",
-      "configurations": ["Electron: Main", "Electron: Renderer"]
+      "configurations": [
+        "Electron: Main",
+        "Electron: Renderer"
+      ]
     }
   ]
 }
