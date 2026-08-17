@@ -6,13 +6,93 @@ import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import { alpha } from '@mui/material/styles';
 import type { CodeMateMessage } from '@renderer/types/codeMate';
+import hljs from 'highlight.js';
+import { Children, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
-import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import 'highlight.js/styles/github-dark.css';
 
 type ChatMateMessageItemProps = {
   message: CodeMateMessage;
+};
+
+type CodeElementProps = {
+  children?: ReactNode;
+  className?: string;
+};
+
+const CODE_LANGUAGE_CLASS = /language-(\S+)/;
+
+const CODE_LANGUAGE_ALIASES: Record<string, string> = {
+  golang: 'go',
+  'objective-c': 'objc',
+  vue: 'xml',
+  vuejs: 'xml',
+};
+
+/**
+ * 从 Markdown 代码块 className 中读取语言标记。
+ */
+const getCodeLanguage = (className?: string) => {
+  const language = className?.match(CODE_LANGUAGE_CLASS)?.[1];
+  return language ? language.toLowerCase() : '';
+};
+
+/**
+ * 把代码块 children 转成纯文本，交给 highlight.js 处理。
+ */
+const getCodeText = (children?: ReactNode) => {
+  return Children.toArray(children).join('').replace(/\n$/, '');
+};
+
+/**
+ * 判断没有语言标记的 code 是否来自 Markdown 代码块。
+ */
+const isCodeBlockText = (children?: ReactNode) => {
+  return Children.toArray(children).join('').includes('\n');
+};
+
+/**
+ * 使用 highlight.js 高亮代码；没有语言时自动识别。
+ */
+const highlightMarkdownCode = (code: string, rawLanguage: string) => {
+  const language = CODE_LANGUAGE_ALIASES[rawLanguage] || rawLanguage;
+
+  if (language && hljs.getLanguage(language)) {
+    hljs.highlight(code, {
+      ignoreIllegals: true,
+      language,
+    }).value;
+  }
+
+  // 未标注语言或语言不支持时自动识别，尽量让普通代码块也有高亮。
+  return hljs.highlightAuto(code).value;
+};
+
+/**
+ * 自定义 Markdown 代码块渲染，直接控制高亮逻辑。
+ */
+const markdownComponents = {
+  code({ children, className: sourceClassName }: CodeElementProps) {
+    const codeText = getCodeText(children);
+    const rawLanguage = getCodeLanguage(sourceClassName);
+
+    if (!rawLanguage && !isCodeBlockText(children)) {
+      return <code className={sourceClassName}>{children}</code>;
+    }
+
+    const highlightedCode = highlightMarkdownCode(codeText, rawLanguage);
+    const nextClassName = rawLanguage ? `hljs language-${rawLanguage}` : 'hljs';
+
+    return (
+      <code
+        className={nextClassName}
+        // highlight.js 会转义源码，只保留用于着色的 span 标签。
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: highlightedCode }}
+      />
+    );
+  },
 };
 
 /**
@@ -46,11 +126,10 @@ export default function ChatMateMessageItem({
           bgcolor: isUser
             ? alpha(theme.palette.primary.main, 0.24)
             : alpha(theme.palette.background.paper, 0.88),
-          border: `1px solid ${
-            isUser
-              ? alpha(theme.palette.primary.main, 0.28)
-              : theme.palette.divider
-          }`,
+          border: `1px solid ${isUser
+            ? alpha(theme.palette.primary.main, 0.28)
+            : theme.palette.divider
+            }`,
           borderRadius: 1,
           maxWidth: '76%',
           p: 1,
@@ -70,68 +149,6 @@ export default function ChatMateMessageItem({
             '& > :last-child': {
               mb: 0,
             },
-            '& a': {
-              color: theme.palette.primary.main,
-              textDecoration: 'none',
-            },
-            '& a:hover': {
-              textDecoration: 'underline',
-            },
-            '& blockquote': {
-              borderLeft: `3px solid ${theme.palette.divider}`,
-              color: theme.palette.text.secondary,
-              m: 0,
-              pl: 1,
-            },
-            '& code': {
-              bgcolor: alpha(theme.palette.text.primary, 0.08),
-              borderRadius: 0.5,
-              fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
-              fontSize: 11,
-              px: 0.4,
-              py: 0.1,
-            },
-            '& img': {
-              borderRadius: 0.5,
-              display: 'block',
-              height: 'auto',
-              maxWidth: '100%',
-            },
-            '& li': {
-              my: 0.25,
-            },
-            '& ol, & ul': {
-              mb: 0.75,
-              mt: 0.75,
-              pl: 2,
-            },
-            '& p': {
-              mb: 0.75,
-              mt: 0,
-            },
-            '& pre': {
-              bgcolor: '#0d1117',
-              border: `1px solid ${alpha(theme.palette.common.white, 0.12)}`,
-              borderRadius: 1,
-              color: '#c9d1d9',
-              fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
-              fontSize: 11,
-              lineHeight: 1.55,
-              my: 0.75,
-              overflow: 'auto',
-              p: 1,
-            },
-            '& pre code': {
-              bgcolor: 'transparent',
-              borderRadius: 0,
-              color: 'inherit',
-              display: 'block',
-              fontSize: 'inherit',
-              overflowWrap: 'normal',
-              p: 0,
-              whiteSpace: 'pre',
-              wordBreak: 'normal',
-            },
             '& table': {
               borderCollapse: 'collapse',
               display: 'block',
@@ -150,7 +167,7 @@ export default function ChatMateMessageItem({
           })}
         >
           <ReactMarkdown
-            rehypePlugins={[rehypeHighlight]}
+            components={markdownComponents}
             remarkPlugins={[remarkGfm]}
           >
             {message.content}
