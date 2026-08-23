@@ -17,6 +17,7 @@ export type LocalChat = {
 export type LocalMessage = {
   chatId: string;
   content: string;
+  thought?: string;
   createdAt: string;
   id: string;
   role: 'user' | 'assistant';
@@ -37,6 +38,8 @@ export type CreateChatParams = {
 export type CreateMessageParams = {
   chatId: string;
   content: string;
+  thought?: string;
   id?: string;
   role: LocalMessage['role'];
 };
+

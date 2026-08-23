@@ -8,4 +8,6 @@ export const CHAT_STREAM_EVENT = {
   DONE: 'done',
   ERROR: 'error',
   MESSAGE: 'message',
+  THOUGHT: 'thought',
 } as const;
+

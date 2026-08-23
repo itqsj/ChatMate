@@ -15,12 +15,14 @@ type StreamChatParams = {
   history: StreamChatHistoryMessage[];
   message: string;
   onMessage: (content: string) => void;
+  onThought?: (content: string) => void;
 };
 
 type ServerSentEvent = {
   data: string;
   event: string;
 };
+
 
 /**
  * 把更新时间转换为左侧栏展示时间，SQLite 不单独存展示字段。
@@ -158,16 +160,24 @@ const parseSseEvent = (rawEvent: string): ServerSentEvent => {
 };
 
 /**
- * 根据 SSE 事件类型处理消息、错误或结束信号。
+ * 根据 SSE 事件类型处理消息、思考、错误或结束信号。
  */
 const handleSseEvent = (
   rawEvent: string,
   onMessage: (content: string) => void,
+  onThought?: (content: string) => void,
 ) => {
   const parsedEvent = parseSseEvent(rawEvent);
 
   if (parsedEvent.event === CHAT_STREAM_EVENT.ERROR) {
     throw new Error(parsedEvent.data || '聊天接口返回错误');
+  }
+
+  if (
+    parsedEvent.event === CHAT_STREAM_EVENT.THOUGHT &&
+    parsedEvent.data !== ''
+  ) {
+    onThought?.(parsedEvent.data);
   }
 
   if (
@@ -184,6 +194,7 @@ const handleSseEvent = (
 const readStream = async (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onMessage: (content: string) => void,
+  onThought?: (content: string) => void,
 ) => {
   const decoder = new TextDecoder();
   let buffer = '';
@@ -205,7 +216,7 @@ const readStream = async (
 
         events.forEach((eventText) => {
           if (eventText.trim() !== '') {
-            handleSseEvent(eventText, onMessage);
+            handleSseEvent(eventText, onMessage, onThought);
           }
         });
       }
@@ -213,7 +224,7 @@ const readStream = async (
 
     buffer += decoder.decode();
     if (buffer.trim() !== '') {
-      handleSseEvent(buffer, onMessage);
+      handleSseEvent(buffer, onMessage, onThought);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : '读取聊天流失败';
@@ -228,6 +239,7 @@ export const streamChat = async ({
   history,
   message,
   onMessage,
+  onThought,
 }: StreamChatParams) => {
   try {
     const response = await fetch(CHAT_STREAM_API_URL, {
@@ -249,7 +261,7 @@ export const streamChat = async ({
     const reader = response.body.getReader();
 
     try {
-      await readStream(reader, onMessage);
+      await readStream(reader, onMessage, onThought);
     } finally {
       reader.releaseLock();
     }
@@ -260,3 +272,4 @@ export const streamChat = async ({
     throw new Error(nextErrorMessage);
   }
 };
+

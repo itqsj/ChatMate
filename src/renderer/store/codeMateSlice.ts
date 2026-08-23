@@ -52,6 +52,22 @@ const codeMateSlice = createSlice({
       }
     },
     /**
+     * 追加 AI 思考过程的流式分片。
+     */
+    appendChatThoughtChunk(
+      state,
+      action: PayloadAction<{ chunk: string; id: string }>,
+    ) {
+      const message = state.messages.find(
+        (item) => item.id === action.payload.id,
+      );
+
+      if (message) {
+        message.thought = (message.thought || '') + action.payload.chunk;
+      }
+    },
+
+    /**
      * 创建聊天并选中，用于兼容现有测试和简单页面操作。
      */
     createChat(state, action: PayloadAction<CodeMateChat>) {
@@ -113,12 +129,13 @@ const codeMateSlice = createSlice({
       state.chats = action.payload;
     },
     /**
-     * 覆盖指定消息内容。
+     * 覆盖指定消息内容与思考过程。
      */
     setChatMessageContent(
       state,
       action: PayloadAction<{
         content: string;
+        thought?: string;
         id: string;
         updatedAt?: string;
       }>,
@@ -129,6 +146,9 @@ const codeMateSlice = createSlice({
 
       if (message) {
         message.content = action.payload.content;
+        if (action.payload.thought !== undefined) {
+          message.thought = action.payload.thought;
+        }
         if (action.payload.updatedAt) {
           message.updatedAt = action.payload.updatedAt;
         }
@@ -184,6 +204,7 @@ export type CodeMateRootState = {
 export const {
   appendChatMessage,
   appendChatMessageChunk,
+  appendChatThoughtChunk,
   createChat,
   removeChat,
   removeWorkspace,
@@ -196,5 +217,6 @@ export const {
   upsertChat,
   upsertWorkspace,
 } = codeMateSlice.actions;
+
 
 export default codeMateSlice.reducer;

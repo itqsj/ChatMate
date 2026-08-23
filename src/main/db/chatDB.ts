@@ -73,6 +73,7 @@ const initTables = (database: Database.Database) => {
       chatId TEXT NOT NULL,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
+      thought TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
       FOREIGN KEY (chatId) REFERENCES chats(id) ON DELETE CASCADE
@@ -84,7 +85,14 @@ const initTables = (database: Database.Database) => {
     CREATE INDEX IF NOT EXISTS idx_messages_chatId_createdAt
       ON messages (chatId, createdAt);
   `);
+
+  try {
+    database.exec('ALTER TABLE messages ADD COLUMN thought TEXT;');
+  } catch {
+    // 忽略字段已存在的报错
+  }
 };
+
 
 /**
  * 获取并初始化本地 SQLite 连接。
@@ -239,7 +247,7 @@ export const deleteChat = (chatId: string): string => {
 export const listMessages = (chatId: string): LocalMessage[] => {
   return getDb()
     .prepare(
-      'SELECT id, chatId, role, content, createdAt, updatedAt FROM messages WHERE chatId = ? ORDER BY createdAt ASC',
+      'SELECT id, chatId, role, content, thought, createdAt, updatedAt FROM messages WHERE chatId = ? ORDER BY createdAt ASC',
     )
     .all(chatId) as LocalMessage[];
 };
@@ -250,6 +258,7 @@ export const listMessages = (chatId: string): LocalMessage[] => {
 export const createMessage = ({
   chatId,
   content,
+  thought,
   id,
   role,
 }: CreateMessageParams): LocalMessage => {
@@ -257,6 +266,7 @@ export const createMessage = ({
   const message: LocalMessage = {
     chatId,
     content,
+    thought: thought || undefined,
     createdAt: now,
     id: id || createLocalId('message'),
     role,
@@ -267,13 +277,14 @@ export const createMessage = ({
   const transaction = database.transaction(() => {
     database
       .prepare(
-        'INSERT INTO messages (id, chatId, role, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO messages (id, chatId, role, content, thought, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
       )
       .run(
         message.id,
         message.chatId,
         message.role,
         message.content,
+        message.thought || null,
         message.createdAt,
         message.updatedAt,
       );
@@ -285,6 +296,7 @@ export const createMessage = ({
   });
 
   transaction();
+
 
   return message;
 };

@@ -1,16 +1,22 @@
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import PsychologyOutlinedIcon from '@mui/icons-material/PsychologyOutlined';
 import Box from '@mui/material/Box';
+import Collapse from '@mui/material/Collapse';
 import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import type { CodeMateMessage } from '@renderer/types/codeMate';
 import hljs from 'highlight.js';
-import { Children, type ReactNode } from 'react';
+import { Children, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import 'highlight.js/styles/github-dark.css';
+
 
 type ChatMateMessageItemProps = {
   message: CodeMateMessage;
@@ -96,6 +102,110 @@ const markdownComponents = {
 };
 
 /**
+ * 仿 DeepSeek / Kimi 风格的深度思考展示组件（支持折叠/展开、左侧引导线）。
+ */
+
+function DeepSeekThoughtView({
+  thought,
+  isFinished,
+}: {
+  thought: string;
+  isFinished: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  if (!thought) return null;
+
+  return (
+    <Box sx={{ mb: 1.5, mt: 0.25 }}>
+      {/* 头部：已思考 / 思考中... 切换条 */}
+      <Stack
+        direction="row"
+        onClick={() => setExpanded((prev) => !prev)}
+        spacing={0.5}
+        sx={(theme) => ({
+          alignItems: 'center',
+          borderRadius: 0.75,
+          color: theme.palette.text.secondary,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          px: 0.5,
+          py: 0.25,
+          transition: 'all 0.15s ease',
+          userSelect: 'none',
+          '&:hover': {
+            bgcolor: alpha(theme.palette.text.primary, 0.06),
+            color: theme.palette.text.primary,
+          },
+        })}
+      >
+        <PsychologyOutlinedIcon
+          sx={(theme) => ({
+            fontSize: 16,
+            color: isFinished
+              ? theme.palette.text.secondary
+              : theme.palette.primary.main,
+          })}
+        />
+        <Typography
+          sx={{
+            color: 'inherit',
+            fontSize: 12,
+            fontWeight: 500,
+          }}
+        >
+          {isFinished ? '已思考' : '思考中...'}
+        </Typography>
+        {expanded ? (
+          <KeyboardArrowUpIcon sx={{ color: 'inherit', fontSize: 16 }} />
+        ) : (
+          <KeyboardArrowDownIcon sx={{ color: 'inherit', fontSize: 16 }} />
+        )}
+      </Stack>
+
+      {/* 思考内容主体：左侧带引导线，缩进排版 */}
+      <Collapse in={expanded}>
+        <Box
+          sx={(theme) => ({
+            borderLeft: `2px solid ${alpha(theme.palette.text.primary, 0.14)}`,
+            color: alpha(theme.palette.text.primary, 0.65),
+            fontSize: 12,
+            lineHeight: 1.65,
+            maxHeight: 380,
+            ml: 0.75,
+            mt: 0.75,
+            overflowY: 'auto',
+            pl: 1.5,
+            wordBreak: 'break-word',
+            '& ul, & ol': {
+              my: 0.5,
+              pl: 2,
+            },
+            '& p': {
+              my: 0.5,
+            },
+            '& blockquote': {
+              borderLeft: `2px solid ${theme.palette.primary.main}`,
+              my: 0.5,
+              opacity: 0.85,
+              pl: 1,
+            },
+          })}
+        >
+          <ReactMarkdown
+            components={markdownComponents}
+            remarkPlugins={[remarkGfm]}
+          >
+            {thought}
+          </ReactMarkdown>
+        </Box>
+      </Collapse>
+    </Box>
+  );
+}
+
+
+/**
  * 渲染单条聊天消息，区分用户和 AI 的气泡样式。
  */
 export default function ChatMateMessageItem({
@@ -135,44 +245,53 @@ export default function ChatMateMessageItem({
           p: 1,
         })}
       >
-        <Box
-          className="chatmate-message-content"
-          sx={(theme) => ({
-            color: theme.palette.text.primary,
-            fontSize: 12,
-            lineHeight: 1.65,
-            overflowWrap: 'anywhere',
-            wordBreak: 'break-word',
-            '& > :first-child': {
-              mt: 0,
-            },
-            '& > :last-child': {
-              mb: 0,
-            },
-            '& table': {
-              borderCollapse: 'collapse',
-              display: 'block',
-              maxWidth: '100%',
-              overflow: 'auto',
-            },
-            '& td, & th': {
-              border: `1px solid ${theme.palette.divider}`,
-              px: 0.75,
-              py: 0.5,
-            },
-            '& th': {
-              bgcolor: alpha(theme.palette.text.primary, 0.06),
-              fontWeight: 700,
-            },
-          })}
-        >
-          <ReactMarkdown
-            components={markdownComponents}
-            remarkPlugins={[remarkGfm]}
+        {!isUser && message.thought && (
+          <DeepSeekThoughtView
+            isFinished={Boolean(message.content)}
+            thought={message.thought}
+          />
+        )}
+
+        {message.content && (
+          <Box
+            className="chatmate-message-content"
+            sx={(theme) => ({
+              color: theme.palette.text.primary,
+              fontSize: 12,
+              lineHeight: 1.65,
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              '& > :first-child': {
+                mt: 0,
+              },
+              '& > :last-child': {
+                mb: 0,
+              },
+              '& table': {
+                borderCollapse: 'collapse',
+                display: 'block',
+                maxWidth: '100%',
+                overflow: 'auto',
+              },
+              '& td, & th': {
+                border: `1px solid ${theme.palette.divider}`,
+                px: 0.75,
+                py: 0.5,
+              },
+              '& th': {
+                bgcolor: alpha(theme.palette.text.primary, 0.06),
+                fontWeight: 700,
+              },
+            })}
           >
-            {message.content}
-          </ReactMarkdown>
-        </Box>
+            <ReactMarkdown
+              components={markdownComponents}
+              remarkPlugins={[remarkGfm]}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </Box>
+        )}
         {message.code && (
           <Box
             component="pre"
@@ -192,7 +311,7 @@ export default function ChatMateMessageItem({
             <code>{message.code}</code>
           </Box>
         )}
-        {!isUser && (
+        {!isUser && message.content && (
           <Stack direction="row" spacing={0.25} sx={{ mt: 0.5 }}>
             <Tooltip title="复制">
               <IconButton
@@ -213,3 +332,4 @@ export default function ChatMateMessageItem({
     </Stack>
   );
 }
+

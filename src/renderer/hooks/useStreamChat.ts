@@ -9,6 +9,7 @@ import {
 import {
   appendChatMessage,
   appendChatMessageChunk,
+  appendChatThoughtChunk,
   createChat,
   setChatMessageContent,
   setChats,
@@ -19,6 +20,7 @@ import {
 } from '@renderer/store/selectors';
 import { useAppDispatch, useAppSelector } from '@renderer/store/hooks';
 import type { CodeMateChat } from '@renderer/types/codeMate';
+
 
 /**
  * 创建本地聊天消息 ID。
@@ -109,9 +111,21 @@ const useStreamChat = () => {
           }),
         );
 
+        let assistantContent = '';
+        let assistantThought = '';
+
         await streamChat({
           history,
           message: content,
+          onThought: (chunk) => {
+            assistantThought += chunk;
+            dispatch(
+              appendChatThoughtChunk({
+                chunk,
+                id: assistantMessageId,
+              }),
+            );
+          },
           onMessage: (chunk) => {
             assistantContent += chunk;
             // 更新 AI 返回信息
@@ -124,11 +138,12 @@ const useStreamChat = () => {
           },
         });
 
-        if (assistantContent !== '') {
+        if (assistantContent !== '' || assistantThought !== '') {
           // 创建 AI 信息到数据库
           const assistantMessage = await createLocalMessage({
             chatId: activeChat.id,
             content: assistantContent,
+            thought: assistantThought || undefined,
             id: assistantMessageId,
             role: 'assistant',
           });
@@ -137,12 +152,14 @@ const useStreamChat = () => {
           dispatch(
             setChatMessageContent({
               content: assistantMessage.content,
+              thought: assistantMessage.thought,
               id: assistantMessage.id,
               updatedAt: assistantMessage.updatedAt,
             }),
           );
           await refreshChats();
         }
+
 
         return true;
       } catch (error) {

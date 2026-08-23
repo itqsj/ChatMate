@@ -20,7 +20,9 @@ export type CodeMateMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  thought?: string;
   createdAt: string;
   updatedAt: string;
   code?: string;
 };
+
