@@ -11,3 +11,8 @@ export const CHAT_STREAM_EVENT = {
   THOUGHT: 'thought',
 } as const;
 
+/**
+ * 判定消息列表是否吸底的距离阈值（单位：像素）。
+ * 当距离底部小于该阈值时，认为用户处于底部，激活流式自动吸底。
+ */
+export const AUTO_SCROLL_THRESHOLD = 60;

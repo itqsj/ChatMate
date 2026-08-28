@@ -18,6 +18,37 @@ import {
 } from '@renderer/store/selectors';
 import { useAppSelector } from '@renderer/store/hooks';
 
+export type ComposerKeyEvent = {
+  isComposing?: boolean;
+  key: string;
+  keyCode?: number;
+  shiftKey: boolean;
+};
+
+/**
+ * 判断键盘按键事件是否应该触发发送消息。
+ * 规则：按下 Enter 键，且不是 Shift+Enter 换行，且非输入法合成状态时触发发送。
+ */
+export const shouldSendMessageOnKeyDown = (
+  event: ComposerKeyEvent,
+): boolean => {
+  if (event.key !== 'Enter') {
+    return false;
+  }
+
+  // 中文输入法合成状态不触发发送
+  if (event.isComposing || event.keyCode === 229) {
+    return false;
+  }
+
+  // Shift + Enter 属于多行换行，不拦截
+  if (event.shiftKey) {
+    return false;
+  }
+
+  return true;
+};
+
 /**
  * 渲染底部输入区，并负责发送聊天消息。
  */
@@ -38,6 +69,11 @@ export default function ChatMateComposer() {
    * 把当前输入内容发送到后端流式接口，并由 hook 写入本地 SQLite。
    */
   const handleSend = async () => {
+    // 空内容或正在输出时不发送
+    if (message.trim() === '' || isStreaming) {
+      return;
+    }
+
     try {
       const sent = await sendMessage(message);
       if (sent) {
@@ -50,10 +86,18 @@ export default function ChatMateComposer() {
   };
 
   /**
-   * 支持 Ctrl/Command + Enter 快捷发送。
+   * 按 Enter 键发送消息，Shift + Enter 换行。
+   * 当中文输入法正在输入拼音合成阶段时不触发发送。
    */
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    if (
+      shouldSendMessageOnKeyDown({
+        isComposing: event.nativeEvent.isComposing,
+        key: event.key,
+        keyCode: event.keyCode,
+        shiftKey: event.shiftKey,
+      })
+    ) {
       event.preventDefault();
       handleSend();
     }

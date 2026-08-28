@@ -12,11 +12,10 @@ import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
 import type { CodeMateMessage } from '@renderer/types/codeMate';
 import hljs from 'highlight.js';
-import { Children, useState, type ReactNode } from 'react';
+import { Children, useEffect, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import 'highlight.js/styles/github-dark.css';
-
 
 type ChatMateMessageItemProps = {
   message: CodeMateMessage;
@@ -65,7 +64,7 @@ const highlightMarkdownCode = (code: string, rawLanguage: string) => {
   const language = CODE_LANGUAGE_ALIASES[rawLanguage] || rawLanguage;
 
   if (language && hljs.getLanguage(language)) {
-    hljs.highlight(code, {
+    return hljs.highlight(code, {
       ignoreIllegals: true,
       language,
     }).value;
@@ -204,14 +203,62 @@ function DeepSeekThoughtView({
   );
 }
 
+/**
+ * 判断消息元素是否已经滚动到达顶部并进入吸顶状态。
+ * @param elementTop 元素当前相对视口的顶边坐标
+ * @param containerTop 滚动容器当前相对视口的顶边坐标
+ * @param tolerance 容差范围（默认 12px，覆盖渲染亚像素与微小内边距偏移）
+ */
+export const checkIsElementStuck = (
+  elementTop: number,
+  containerTop: number,
+  tolerance = 12,
+): boolean => {
+  return elementTop <= containerTop + tolerance;
+};
 
 /**
  * 渲染单条聊天消息，区分用户和 AI 的气泡样式。
+ * 在每个问答轮次中，用户提问独占一行通栏吸顶（Sticky Top）并支持毛玻璃平滑过渡效果。
  */
 export default function ChatMateMessageItem({
   message,
 }: ChatMateMessageItemProps) {
   const isUser = message.role === 'user';
+  const itemRef = useRef<HTMLDivElement | null>(null);
+  const [isStuck, setIsStuck] = useState(false);
+
+  /**
+   * 监听父级滚动容器的滚动，检测用户提问是否到达顶部吸顶位置，并触发平滑过渡动效。
+   */
+  useEffect(() => {
+    if (!isUser) {
+      return undefined;
+    }
+    const element = itemRef.current;
+    if (!element) {
+      return undefined;
+    }
+
+    const scrollContainer = element.closest('.chatmate-message-scroll-box');
+    if (!scrollContainer) {
+      return undefined;
+    }
+
+    const checkSticky = () => {
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const stuck = checkIsElementStuck(elementRect.top, containerRect.top, 12);
+      setIsStuck((prev) => (prev !== stuck ? stuck : prev));
+    };
+
+    scrollContainer.addEventListener('scroll', checkSticky, { passive: true });
+    checkSticky();
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', checkSticky);
+    };
+  }, [isUser]);
 
   /**
    * 复制 AI 消息内容，失败时只记录到控制台，避免打断聊天流程。
@@ -225,111 +272,237 @@ export default function ChatMateMessageItem({
     }
   };
 
-  return (
-    <Stack
-      direction="row"
-      sx={{ justifyContent: isUser ? 'flex-end' : 'flex-start' }}
-    >
-      <Paper
-        elevation={0}
+  // 用户消息渲染：吸顶时一体化浮现靠左标题顶栏，未吸顶时常规靠右气泡，杜绝先白后宽的脱节拉伸
+  if (isUser) {
+    return (
+      <Box
+        ref={itemRef}
         sx={(theme) => ({
-          bgcolor: isUser
-            ? alpha(theme.palette.primary.main, 0.24)
-            : alpha(theme.palette.background.paper, 0.88),
-          border: `1px solid ${isUser
-            ? alpha(theme.palette.primary.main, 0.28)
-            : theme.palette.divider
-            }`,
-          borderRadius: 1,
-          maxWidth: '76%',
-          p: 1,
+          backdropFilter: isStuck ? 'blur(16px)' : 'none',
+          bgcolor: isStuck
+            ? alpha(theme.palette.background.paper, 0.72)
+            : 'transparent',
+          borderBottom: isStuck
+            ? `1px solid ${alpha(theme.palette.divider, 0.5)}`
+            : '1px solid transparent',
+          boxShadow: isStuck
+            ? `0 4px 16px ${alpha(theme.palette.common.black, 0.06)}`
+            : 'none',
+          boxSizing: 'border-box',
+          position: 'sticky',
+          py: isStuck ? 0.75 : 0.25,
+          top: 0,
+          transition:
+            'background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), backdrop-filter 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), padding 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          width: '100%',
+          zIndex: 10,
         })}
       >
-        {!isUser && message.thought && (
-          <DeepSeekThoughtView
-            isFinished={Boolean(message.content)}
-            thought={message.thought}
-          />
-        )}
-
-        {message.content && (
-          <Box
-            className="chatmate-message-content"
-            sx={(theme) => ({
-              color: theme.palette.text.primary,
-              fontSize: 12,
-              lineHeight: 1.65,
-              overflowWrap: 'anywhere',
-              wordBreak: 'break-word',
-              '& > :first-child': {
-                mt: 0,
-              },
-              '& > :last-child': {
-                mb: 0,
-              },
-              '& table': {
-                borderCollapse: 'collapse',
-                display: 'block',
-                maxWidth: '100%',
-                overflow: 'auto',
-              },
-              '& td, & th': {
-                border: `1px solid ${theme.palette.divider}`,
-                px: 0.75,
-                py: 0.5,
-              },
-              '& th': {
-                bgcolor: alpha(theme.palette.text.primary, 0.06),
-                fontWeight: 700,
-              },
-            })}
-          >
-            <ReactMarkdown
-              components={markdownComponents}
-              remarkPlugins={[remarkGfm]}
+        <Box
+          sx={{
+            boxSizing: 'border-box',
+            maxWidth: 860,
+            mx: 'auto',
+            px: 3,
+            width: '100%',
+          }}
+        >
+          {isStuck ? (
+            /* 吸顶状态：一体化全宽顶栏，文本靠左，直接呈现标题字阶，背景与内容同步就位 */
+            <Box
+              sx={{
+                animation: 'chatmateFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                textAlign: 'left',
+                width: '100%',
+                '@keyframes chatmateFadeIn': {
+                  from: { opacity: 0, transform: 'translateY(-2px)' },
+                  to: { opacity: 1, transform: 'translateY(0)' },
+                },
+              }}
             >
-              {message.content}
-            </ReactMarkdown>
-          </Box>
-        )}
-        {message.code && (
-          <Box
-            component="pre"
-            sx={(theme) => ({
-              bgcolor: alpha(theme.palette.background.paper, 0.84),
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 1,
-              color: theme.palette.text.primary,
-              fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
-              fontSize: 11,
-              lineHeight: 1.5,
-              mt: 0.75,
-              overflow: 'auto',
-              p: 1,
-            })}
-          >
-            <code>{message.code}</code>
-          </Box>
-        )}
-        {!isUser && message.content && (
-          <Stack direction="row" spacing={0.25} sx={{ mt: 0.5 }}>
-            <Tooltip title="复制">
-              <IconButton
-                aria-label="复制 AI 消息"
-                onClick={handleCopy}
+              {message.content && (
+                <Box
+                  className="chatmate-message-content"
+                  sx={(theme) => ({
+                    color: theme.palette.text.primary,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1.65,
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                    '& > :first-child': { mt: 0 },
+                    '& > :last-child': { mb: 0 },
+                  })}
+                >
+                  <ReactMarkdown
+                    components={markdownComponents}
+                    remarkPlugins={[remarkGfm]}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            /* 未吸顶状态：常规靠右独立蓝色气泡 */
+            <Stack
+              direction="row"
+              sx={{ justifyContent: 'flex-end', width: '100%' }}
+            >
+              <Paper
+                elevation={0}
                 sx={(theme) => ({
-                  color: theme.palette.text.secondary,
-                  height: 24,
-                  width: 24,
+                  bgcolor: alpha(theme.palette.primary.main, 0.24),
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.28)}`,
+                  borderRadius: 1,
+                  boxSizing: 'border-box',
+                  maxWidth: '76%',
+                  p: 1,
                 })}
               >
-                <ContentCopyIcon sx={{ fontSize: 14 }} />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        )}
-      </Paper>
-    </Stack>
+                {message.content && (
+                  <Box
+                    className="chatmate-message-content"
+                    sx={(theme) => ({
+                      color: theme.palette.text.primary,
+                      fontSize: 12,
+                      lineHeight: 1.65,
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      '& > :first-child': { mt: 0 },
+                      '& > :last-child': { mb: 0 },
+                    })}
+                  >
+                    <ReactMarkdown
+                      components={markdownComponents}
+                      remarkPlugins={[remarkGfm]}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  </Box>
+                )}
+              </Paper>
+            </Stack>
+          )}
+        </Box>
+      </Box>
+    );
+  }
+
+  // AI 回复消息渲染：外层 100% 确保与用户消息、输入框在中央 860px 主列严格对齐，内层气泡保持 82% 宽度并在右侧留出呼吸距离
+  return (
+    <Box sx={{ width: '100%' }}>
+      <Box
+        sx={{
+          boxSizing: 'border-box',
+          maxWidth: 860,
+          mx: 'auto',
+          px: 3,
+          width: '100%',
+        }}
+      >
+        <Stack
+          direction="row"
+          sx={{ justifyContent: 'flex-start', width: '100%' }}
+        >
+          <Paper
+            elevation={0}
+            sx={(theme) => ({
+              bgcolor: alpha(theme.palette.background.paper, 0.88),
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 1,
+              boxSizing: 'border-box',
+              maxWidth: '82%',
+              p: 1.25,
+            })}
+          >
+            {!isUser && message.thought && (
+              <DeepSeekThoughtView
+                isFinished={Boolean(message.content)}
+                thought={message.thought}
+              />
+            )}
+
+            {message.content && (
+              <Box
+                className="chatmate-message-content"
+                sx={(theme) => ({
+                  color: theme.palette.text.primary,
+                  fontSize: 12,
+                  lineHeight: 1.65,
+                  overflowWrap: 'anywhere',
+                  wordBreak: 'break-word',
+                  '& > :first-child': {
+                    mt: 0,
+                  },
+                  '& > :last-child': {
+                    mb: 0,
+                  },
+                  '& table': {
+                    borderCollapse: 'collapse',
+                    display: 'block',
+                    maxWidth: '100%',
+                    overflow: 'auto',
+                  },
+                  '& td, & th': {
+                    border: `1px solid ${theme.palette.divider}`,
+                    px: 0.75,
+                    py: 0.5,
+                  },
+                  '& th': {
+                    bgcolor: alpha(theme.palette.text.primary, 0.06),
+                    fontWeight: 700,
+                  },
+                })}
+              >
+                <ReactMarkdown
+                  components={markdownComponents}
+                  remarkPlugins={[remarkGfm]}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </Box>
+            )}
+            {message.code && (
+              <Box
+                component="pre"
+                sx={(theme) => ({
+                  bgcolor: alpha(theme.palette.background.paper, 0.84),
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: 1,
+                  color: theme.palette.text.primary,
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Consolas, monospace',
+                  fontSize: 11,
+                  lineHeight: 1.5,
+                  mt: 0.75,
+                  overflow: 'auto',
+                  p: 1,
+                })}
+              >
+                <code>{message.code}</code>
+              </Box>
+            )}
+            {!isUser && message.content && (
+              <Stack direction="row" spacing={0.25} sx={{ mt: 0.5 }}>
+                <Tooltip title="复制">
+                  <IconButton
+                    aria-label="复制 AI 消息"
+                    onClick={handleCopy}
+                    sx={(theme) => ({
+                      color: theme.palette.text.secondary,
+                      height: 24,
+                      width: 24,
+                    })}
+                  >
+                    <ContentCopyIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            )}
+          </Paper>
+        </Stack>
+      </Box>
+    </Box>
   );
 }
-
